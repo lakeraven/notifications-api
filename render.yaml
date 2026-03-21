@@ -45,6 +45,7 @@ services:
     plan: free
     maxmemoryPolicy: allkeys-lru
     region: oregon
+    ipAllowList: [] # allow only internal Render services
 
   - type: web
     name: notify-api
