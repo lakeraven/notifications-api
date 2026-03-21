@@ -70,5 +70,6 @@ When load requires it, upgrade services in the Render dashboard:
 - **No FedRAMP** — not suitable for customers requiring FedRAMP authorization
 - **No New Relic** — omit `NEW_RELIC_LICENSE_KEY` to skip; gunicorn runs without the NR wrapper
 - **No StatsD** — omit `STATSD_HOST`; gunicorn skips StatsD reporting
-- **Migrations** — run in the build command (`flask db upgrade`) instead of at web startup
+- **Poetry** — build commands install Poetry and use `poetry install` (no committed `requirements.txt`)
+- **Migrations** — run in the build command (`poetry run flask db upgrade`) instead of at web startup
 - **Single web instance** — Starter plan; scale to multiple instances on Standard+ plans

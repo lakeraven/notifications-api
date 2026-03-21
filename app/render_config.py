@@ -76,5 +76,10 @@ class RenderConfig:
         #   '["arn:aws:sns:us-west-2:123456:bounce","arn:aws:sns:us-west-2:123456:complaint","arn:aws:sns:us-west-2:123456:delivery"]'
         raw = getenv("SNS_TOPIC_ARNS")
         if raw:
-            return json.loads(raw)
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    "Invalid JSON in SNS_TOPIC_ARNS environment variable"
+                ) from exc
         return []

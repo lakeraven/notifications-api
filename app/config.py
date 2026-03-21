@@ -355,10 +355,10 @@ class Config(object):
 
 def _s3_credentials_from_env(bucket_prefix):
     return {
-        "bucket": getenv(f"{bucket_prefix}_BUCKET_NAME"),
-        "access_key_id": getenv(f"{bucket_prefix}_AWS_ACCESS_KEY_ID"),
-        "secret_access_key": getenv(f"{bucket_prefix}_AWS_SECRET_ACCESS_KEY"),
-        "region": getenv(f"{bucket_prefix}_AWS_REGION"),
+        "bucket": getenv(f"{bucket_prefix}_BUCKET_NAME", ""),
+        "access_key_id": getenv(f"{bucket_prefix}_AWS_ACCESS_KEY_ID", ""),
+        "secret_access_key": getenv(f"{bucket_prefix}_AWS_SECRET_ACCESS_KEY", ""),
+        "region": getenv(f"{bucket_prefix}_AWS_REGION", ""),
     }
 
 

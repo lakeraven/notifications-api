@@ -115,7 +115,7 @@ def _build_cloud_config():
     CloudfoundryConfig is used — it already falls back to
     env vars when VCAP_SERVICES is absent.
     """
-    if getenv("RENDER"):
+    if getenv("RENDER") == "true":
         from app.render_config import RenderConfig
 
         return RenderConfig()

@@ -4,7 +4,7 @@
 # On Cloud Foundry, CF_INSTANCE_INDEX identifies the instance.
 # On Render, RENDER_INSTANCE_ID is available but there's no index;
 # migrations run in the build command instead, so skip here.
-if [[ -z "$RENDER" && $CF_INSTANCE_INDEX -eq 0 ]]; then
+if [[ -z "$RENDER" && "${CF_INSTANCE_INDEX:-0}" -eq 0 ]]; then
   flask db upgrade
 fi
 

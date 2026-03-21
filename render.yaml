@@ -75,8 +75,8 @@ services:
     runtime: python
     plan: starter
     region: oregon
-    buildCommand: pip install -r requirements.txt && flask db upgrade
-    startCommand: gunicorn -c gunicorn_config.py gunicorn_entry:application
+    buildCommand: pip install poetry && poetry install --only main && poetry run flask db upgrade
+    startCommand: poetry run gunicorn -c gunicorn_config.py gunicorn_entry:application
     healthCheckPath: /_status?simple=true
     envVarGroups:
       - notify-shared
@@ -104,8 +104,8 @@ services:
     runtime: python
     plan: starter
     region: oregon
-    buildCommand: pip install -r requirements.txt
-    startCommand: celery -A run_celery.notify_celery worker --loglevel=INFO --pool=gevent --concurrency=10 --prefetch-multiplier=2
+    buildCommand: pip install poetry && poetry install --only main
+    startCommand: poetry run celery -A run_celery.notify_celery worker --loglevel=INFO --pool=gevent --concurrency=10 --prefetch-multiplier=2
     envVarGroups:
       - notify-shared
     envVars:
@@ -124,8 +124,8 @@ services:
     runtime: python
     plan: starter
     region: oregon
-    buildCommand: pip install -r requirements.txt
-    startCommand: celery -A run_celery.notify_celery beat --loglevel=INFO
+    buildCommand: pip install poetry && poetry install --only main
+    startCommand: poetry run celery -A run_celery.notify_celery beat --loglevel=INFO
     envVarGroups:
       - notify-shared
     envVars:
