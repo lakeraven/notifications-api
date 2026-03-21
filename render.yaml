@@ -1,6 +1,6 @@
 databases:
   - name: notify-db
-    plan: starter
+    plan: basic-256mb
     databaseName: notification_api
     postgresMajorVersion: "15"
     region: oregon
