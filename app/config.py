@@ -163,7 +163,7 @@ class Config(object):
     MOU_SIGNED_ON_BEHALF_ON_BEHALF_RECEIPT_TEMPLATE_ID = (
         "522b6657-5ca5-4368-a294-6b527703bd0b"
     )
-    NOTIFY_INTERNATIONAL_SMS_SENDER = getenv("AWS_US_TOLL_FREE_NUMBER")
+    NOTIFY_INTERNATIONAL_SMS_SENDER = getenv("AWS_US_TOLL_FREE_NUMBER", "+18005555555")
     LETTERS_VOLUME_EMAIL_TEMPLATE_ID = "11fad854-fd38-4a7c-bd17-805fb13dfc12"
     NHS_EMAIL_BRANDING_ID = "a7dc4e56-660b-4db7-8cff-12c37b12b5ea"
     # we only need real email in Live environment (production)
