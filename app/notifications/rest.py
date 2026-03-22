@@ -88,6 +88,7 @@ def get_all_notifications():
     page = data.get("page", 1)
     page_size = data.get("page_size", current_app.config.get("API_PAGE_SIZE"))
     limit_days = data.get("limit_days")
+    client_reference = request.args.get("reference")
     gevent.sleep(0)  # keep this connection alive
     pagination = notifications_dao.get_notifications_for_service(
         str(authenticated_service.id),
@@ -98,6 +99,7 @@ def get_all_notifications():
         limit_days=limit_days,
         key_type=api_user.key_type,
         include_jobs=include_jobs,
+        client_reference=client_reference,
     )
     gevent.sleep(0)  # keep this connection alive
 
