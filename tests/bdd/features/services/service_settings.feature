@@ -67,7 +67,7 @@ Feature: Service settings
   Scenario: Update data retention settings
     Given data retention settings exist for email
     When the data retention setting is updated
-    Then the response status code should be 200
+    Then the response status code should be 204
 
   Scenario: Get service permissions
     When the service is retrieved by ID

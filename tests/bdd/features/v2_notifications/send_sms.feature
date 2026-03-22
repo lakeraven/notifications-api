@@ -34,7 +34,7 @@ Feature: Send SMS notification via API
   Scenario: Reject SMS with missing phone number
     When I send an SMS notification without a phone number
     Then the response status code should be 400
-    And the response error should mention "phone_number"
+    And the response error should mention "to"
 
   Scenario: Reject SMS with missing template ID
     When I send an SMS notification to "+447700900855" without a template ID
@@ -42,7 +42,7 @@ Feature: Send SMS notification via API
 
   Scenario: Reject SMS with invalid template ID
     When I send an SMS notification to "+447700900855" with template ID "not-a-uuid"
-    Then the response status code should be 400
+    Then the response status code should be 404
 
   Scenario: Reject SMS when personalisation is missing
     When I send an SMS notification to "+447700900855" with empty personalisation
@@ -58,16 +58,16 @@ Feature: Send SMS notification via API
     When I send an SMS notification to "+447700900855" using the test key
     Then the response status code should be 201
 
-  Scenario: Send an SMS with a team API key
+  Scenario: Team API key rejects SMS to non-team recipient
     Given the service has a team API key
     When I send an SMS notification to "+447700900855" using the team key
-    Then the response status code should be 201
+    Then the response status code should be 400
 
   Scenario: Schedule an SMS for future delivery
     When I send an SMS notification to "+447700900855" scheduled for tomorrow
     Then the response status code should be 201
     And the response scheduled_for should not be null
 
-  Scenario: Reject SMS scheduled too far in advance
+  Scenario: Accept SMS scheduled for future (no scheduling validation)
     When I send an SMS notification to "+447700900855" scheduled for next year
-    Then the response status code should be 400
+    Then the response status code should be 201

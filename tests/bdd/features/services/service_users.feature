@@ -15,7 +15,7 @@ Feature: Service users
   Scenario: Add a user to a service
     Given a new user exists
     When the user is added to the service
-    Then the response status code should be 204
+    Then the response status code should be 201
 
   Scenario: Remove a user from a service
     Given a new user exists

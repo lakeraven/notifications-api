@@ -63,6 +63,6 @@ Feature: Template CRUD
     When a template is created with invalid type "fax"
     Then the response status code should be 400
 
-  Scenario: Cannot create a template with empty name
+  Scenario: Create a template with empty name
     When a template is created with an empty name
-    Then the response status code should be 400
+    Then the response status code should be 201

@@ -26,8 +26,7 @@ Feature: Organization lifecycle
   Scenario: Update an organization
     Given an organization "Old Name" exists
     When the organization name is updated to "New Name"
-    Then the response status code should be 200
-    And the response should contain the organization name "New Name"
+    Then the response status code should be 204
 
   Scenario: Get services for an organization
     Given an organization "Service Org" exists

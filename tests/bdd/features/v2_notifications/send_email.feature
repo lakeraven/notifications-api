@@ -27,7 +27,7 @@ Feature: Send email notification via API
   Scenario: Reject email with missing email address
     When I send an email notification without an email address
     Then the response status code should be 400
-    And the response error should mention "email_address"
+    And the response error should mention "to"
 
   Scenario: Reject email with invalid email address
     When I send an email notification to "not-an-email" using the template

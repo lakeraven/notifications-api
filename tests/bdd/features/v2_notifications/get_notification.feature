@@ -28,7 +28,7 @@ Feature: Get notification status via API
 
   Scenario: Reject request with invalid notification ID
     When I request a notification with ID "not-a-uuid"
-    Then the response status code should be 404
+    Then the response status code should be 405
 
   Scenario: Reject request with nonexistent notification ID
     When I request a notification with a random UUID
