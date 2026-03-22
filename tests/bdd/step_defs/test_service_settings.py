@@ -1,7 +1,5 @@
 """Step definitions for service settings features."""
 
-import uuid
-
 from pytest_bdd import given, scenarios, then, when
 
 from app.enums import NotificationType, ServicePermissionType
@@ -184,7 +182,7 @@ def update_data_retention(admin_client, service, data_retention, api_response):
         data=data,
     )
     api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
+    api_response["json"] = resp.get_json() if resp.data else None
     return api_response
 
 
@@ -192,8 +190,8 @@ def update_data_retention(admin_client, service, data_retention, api_response):
 def update_service_permissions(admin_client, service, api_response):
     data = {
         "permissions": [
-            ServicePermissionType.EMAIL,
-            ServicePermissionType.SMS,
+            ServicePermissionType.EMAIL.value,
+            ServicePermissionType.SMS.value,
         ],
         "created_by": str(service.users[0].id),
     }

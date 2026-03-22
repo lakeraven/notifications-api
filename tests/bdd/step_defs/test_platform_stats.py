@@ -20,9 +20,9 @@ def get_platform_stats(admin_client, api_response):
 
 @when("usage for all services is retrieved", target_fixture="api_response")
 def get_usage_for_all_services(admin_client, api_response):
-    year = datetime.utcnow().year
+    today = datetime.utcnow().strftime("%Y-%m-%d")
     resp = admin_client.get(
-        f"/platform-stats/usage-for-all-services?year={year}"
+        f"/platform-stats/usage-for-all-services?start_date={today}&end_date={today}"
     )
     api_response["status_code"] = resp.status_code
     api_response["json"] = resp.get_json()

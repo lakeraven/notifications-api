@@ -57,6 +57,7 @@ def get_api_key_by_id(admin_client, service, api_key, api_response):
     return api_response
 
 
+@given("the API key is revoked", target_fixture="api_response")
 @when("the API key is revoked", target_fixture="api_response")
 def revoke_api_key(admin_client, service, api_key, api_response):
     resp = admin_client.post(

@@ -1,12 +1,8 @@
 """Step definitions for service lifecycle features."""
 
-import json
-import uuid
 from datetime import datetime
 
 from pytest_bdd import parsers, scenarios, then, when
-
-from app.enums import NotificationType
 
 scenarios("../features/services/service_lifecycle.feature")
 
@@ -24,22 +20,12 @@ def create_new_service(admin_client, admin_user, name, api_response):
         "name": name,
         "user_id": user_id,
         "message_limit": 1000,
-        "total_message_limit": 100000,
         "restricted": False,
         "active": True,
         "email_from": name.lower().replace(" ", "."),
         "created_by": user_id,
-        "service_type": "government",
     }
     resp = admin_client.post("/service", data=data)
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
-
-
-@when("the service is retrieved by ID", target_fixture="api_response")
-def get_service_by_id(admin_client, service, api_response):
-    resp = admin_client.get(f"/service/{service.id}")
     api_response["status_code"] = resp.status_code
     api_response["json"] = resp.get_json()
     return api_response
@@ -73,14 +59,6 @@ def archive_service(admin_client, service, api_response):
     return api_response
 
 
-@when("the service is suspended", target_fixture="api_response")
-def suspend_service(admin_client, service, api_response):
-    resp = admin_client.post(f"/service/{service.id}/suspend")
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
-
-
 @when("the service is resumed", target_fixture="api_response")
 def resume_service(admin_client, service, api_response):
     resp = admin_client.post(f"/service/{service.id}/resume")
@@ -106,20 +84,12 @@ def get_service_statistics(admin_client, service, api_response):
     return api_response
 
 
-@when("the service notification count is retrieved", target_fixture="api_response")
-def get_service_notification_count(admin_client, service, api_response):
-    resp = admin_client.get(f"/service/{service.id}/notification-count")
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
-
-
 @when(
     parsers.parse('services are searched by name "{name}"'),
     target_fixture="api_response",
 )
 def search_services_by_name(admin_client, name, api_response):
-    resp = admin_client.get(f"/service/find-services-by-name?name={name}")
+    resp = admin_client.get(f"/service/find-services-by-name?service_name={name}")
     api_response["status_code"] = resp.status_code
     api_response["json"] = resp.get_json()
     return api_response
@@ -135,7 +105,13 @@ def get_live_services_data(admin_client, api_response):
 
 @when("monthly data by service is retrieved", target_fixture="api_response")
 def get_monthly_data_by_service(admin_client, api_response):
-    resp = admin_client.get("/service/monthly-data-by-service")
+    from datetime import datetime
+
+    start = datetime.utcnow().strftime("%Y-%m-01")
+    end = datetime.utcnow().strftime("%Y-%m-%d")
+    resp = admin_client.get(
+        f"/service/monthly-data-by-service?start_date={start}&end_date={end}"
+    )
     api_response["status_code"] = resp.status_code
     api_response["json"] = resp.get_json()
     return api_response
@@ -153,8 +129,15 @@ def response_has_service_details(api_response):
 
 @then(parsers.parse('the response should contain the service name "{name}"'))
 def response_has_service_name(api_response, name):
-    data = api_response["json"]["data"]
-    assert data["name"] == name
+    json_data = api_response["json"]
+    # Service detail: {"data": {"name": ...}}
+    # Find services: {"data": [{"name": ...}, ...]}
+    data = json_data.get("data", json_data)
+    if isinstance(data, list):
+        names = [s.get("name", s.get("service_name", "")) for s in data]
+        assert any(name in n for n in names), f"Expected '{name}' in {names}"
+    else:
+        assert data["name"] == name
 
 
 @then("the response should contain a list of services")
@@ -168,3 +151,4 @@ def response_has_services_list(api_response):
 def response_has_history(api_response):
     data = api_response["json"]["data"]
     assert isinstance(data, dict)
+    assert "service_history" in data

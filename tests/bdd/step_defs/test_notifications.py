@@ -1,5 +1,7 @@
 """Step definitions for service notification features."""
 
+from datetime import datetime
+
 from pytest_bdd import given, scenarios, then, when
 
 from app.enums import NotificationType, TemplateType
@@ -50,7 +52,8 @@ def get_notification_by_id(admin_client, service, notification, api_response):
 
 @when("the monthly notification stats are retrieved", target_fixture="api_response")
 def get_monthly_stats(admin_client, service, api_response):
-    resp = admin_client.get(f"/service/{service.id}/notifications/monthly")
+    year = datetime.utcnow().year
+    resp = admin_client.get(f"/service/{service.id}/notifications/monthly?year={year}")
     api_response["status_code"] = resp.status_code
     api_response["json"] = resp.get_json()
     return api_response

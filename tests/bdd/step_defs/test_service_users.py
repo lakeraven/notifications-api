@@ -1,6 +1,6 @@
 """Step definitions for service user features."""
 
-from pytest_bdd import scenarios, then, when
+from pytest_bdd import given, scenarios, then, when
 
 from app.enums import PermissionType
 
@@ -18,6 +18,7 @@ def get_service_users(admin_client, service, api_response):
     return api_response
 
 
+@given("the user is added to the service", target_fixture="api_response")
 @when("the user is added to the service", target_fixture="api_response")
 def add_user_to_service(admin_client, service, new_user, api_response):
     data = {

@@ -1,11 +1,29 @@
 """Step definitions for provider details features."""
 
+import pytest
 from pytest_bdd import scenarios, then, when
 
 from app.dao.provider_details_dao import get_provider_details_by_notification_type
 from app.enums import NotificationType
 
 scenarios("../features/providers/provider_details.feature")
+
+
+@pytest.fixture(autouse=True)
+def _reset_provider_created_by(notify_db_session):
+    """Reset created_by on provider_details and provider_details_history after each
+    test to avoid FK constraint errors when the test teardown cleans up the users table."""
+    yield
+    from app import db
+    from app.models import ProviderDetails, ProviderDetailsHistory
+
+    db.session.execute(
+        ProviderDetails.__table__.update().values(created_by_id=None)
+    )
+    db.session.execute(
+        ProviderDetailsHistory.__table__.update().values(created_by_id=None)
+    )
+    db.session.commit()
 
 
 # -- When steps --
@@ -45,7 +63,7 @@ def update_provider_priority(admin_client, admin_user, notify_db_session, api_re
     providers = get_provider_details_by_notification_type(NotificationType.SMS)
     provider = providers[0]
     data = {
-        "priority": provider.priority,
+        "active": provider.active,
         "created_by": str(admin_user.id),
     }
     resp = admin_client.post(f"/provider-details/{provider.id}", data=data)

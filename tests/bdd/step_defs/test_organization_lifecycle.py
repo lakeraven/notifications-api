@@ -75,7 +75,7 @@ def update_organization_name(admin_client, organization, name, api_response):
     data = {"name": name}
     resp = admin_client.post(f"/organizations/{organization.id}", data=data)
     api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
+    api_response["json"] = resp.get_json() if resp.data else None
     return api_response
 
 
