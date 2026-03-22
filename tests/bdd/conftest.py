@@ -62,7 +62,7 @@ def admin_client(client):
             ]
             return client.post(
                 path,
-                data=json.dumps(data) if data else None,
+                data=json.dumps(data) if data is not None else None,
                 headers=headers,
                 **kwargs,
             )
@@ -75,7 +75,7 @@ def admin_client(client):
             ]
             return client.put(
                 path,
-                data=json.dumps(data) if data else None,
+                data=json.dumps(data) if data is not None else None,
                 headers=headers,
                 **kwargs,
             )
@@ -116,7 +116,7 @@ def service_api_client(client):
             ]
             return client.post(
                 path,
-                data=json.dumps(data) if data else None,
+                data=json.dumps(data) if data is not None else None,
                 headers=headers,
                 **kwargs,
             )
