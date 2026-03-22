@@ -1,29 +1,30 @@
-Feature: Billing usage
+Feature: Billing and usage reporting
   As a platform admin
-  I want to view billing data
-  So that I can track service usage
+  I want to view billing and usage data
+  So that I can track costs and quotas
 
   Background:
-    Given a platform admin user exists
-    And a service exists
+    Given a service exists with sent notifications
 
   Scenario: Get monthly usage for a service
-    When the monthly usage is retrieved for the current year
+    When I get the monthly usage for the current year
     Then the response status code should be 200
+    And the response should include monthly breakdown
 
   Scenario: Get yearly usage summary
-    When the yearly usage summary is retrieved
+    When I get the yearly usage summary
     Then the response status code should be 200
 
   Scenario: Get free SMS fragment limit
-    When the free SMS fragment limit is retrieved
+    When I get the free SMS fragment limit
     Then the response status code should be 200
+    And the response should include the free allowance
 
   Scenario: Set free SMS fragment limit
-    When the free SMS fragment limit is set to 250000
+    When I set the free SMS fragment limit to 250000
     Then the response status code should be 201
 
   Scenario: Update free SMS fragment limit
-    Given a free SMS fragment limit exists
-    When the free SMS fragment limit is set to 100000
+    Given a free SMS fragment limit has been set
+    When I update the free SMS fragment limit to 500000
     Then the response status code should be 201

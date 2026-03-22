@@ -1,10 +1,12 @@
-"""Step definitions for service callback features."""
+"""Step definitions for service callbacks BDD tests."""
 
+import json
 import uuid
 
-from pytest_bdd import given, scenarios, then, when
+from pytest_bdd import given, parsers, scenarios, then, when
 
-from tests.app.db import create_service_callback_api
+from app.constants import ServiceCallbackTypes
+from tests.app.db import create_service, create_service_callback_api, create_user
 
 scenarios("../features/services/callbacks.feature")
 
@@ -12,132 +14,135 @@ scenarios("../features/services/callbacks.feature")
 # -- Given steps --
 
 
-@given("a delivery receipt callback exists", target_fixture="delivery_callback")
-def delivery_callback_exists(notify_db_session, service):
-    from app.enums import CallbackType
-
+@given("the service has a delivery status callback", target_fixture="callback")
+def the_service_has_delivery_callback(service):
     return create_service_callback_api(
+        callback_type=ServiceCallbackTypes.delivery_status,
         service=service,
         url="https://example.com/delivery",
-        callback_type=CallbackType.DELIVERY_STATUS,
+        bearer_token="super_secret_token_1234",
     )
 
 
-@given("an inbound API callback exists", target_fixture="inbound_callback")
-def inbound_callback_exists(notify_db_session, service):
-    from app.dao.service_inbound_api_dao import save_service_inbound_api
-    from app.models import ServiceInboundApi
-
-    inbound_api = ServiceInboundApi(
-        service_id=service.id,
+@given("the service has an inbound SMS callback", target_fixture="callback")
+def the_service_has_inbound_callback(service):
+    return create_service_callback_api(
+        callback_type=ServiceCallbackTypes.inbound_sms,
+        service=service,
         url="https://example.com/inbound",
-        bearer_token="some_super_secret",
-        updated_by_id=service.users[0].id,
+        bearer_token="super_secret_token_1234",
     )
-    save_service_inbound_api(inbound_api)
-    return inbound_api
 
 
 # -- When steps --
 
 
-@when("a delivery receipt callback is created", target_fixture="api_response")
-def create_delivery_callback(admin_client, service, api_response):
-    data = {
-        "url": "https://example.com/delivery",
-        "bearer_token": "some_super_secret",
-        "updated_by_id": str(service.users[0].id),
-    }
+@when("I create a delivery status callback for the service", target_fixture="api_response")
+def create_delivery_callback(admin_client, service):
     resp = admin_client.post(
-        f"/service/{service.id}/delivery-receipt-api",
-        data=data,
+        f"/service/{service.id}/callback-api",
+        data={
+            "url": "https://example.com/delivery-new",
+            "bearer_token": "new_secret_token_1234",
+            "updated_by_id": str(service.users[0].id),
+            "callback_type": ServiceCallbackTypes.delivery_status,
+        },
     )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the delivery receipt callback is retrieved", target_fixture="api_response")
-def get_delivery_callback(admin_client, service, delivery_callback, api_response):
+@when("I get the delivery status callback", target_fixture="api_response")
+def get_delivery_callback(admin_client, service, callback):
     resp = admin_client.get(
-        f"/service/{service.id}/delivery-receipt-api/{delivery_callback.id}"
+        f"/service/{service.id}/callback-api/{callback.id}?callback_type={ServiceCallbackTypes.delivery_status}",
     )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the delivery receipt callback URL is updated", target_fixture="api_response")
-def update_delivery_callback(admin_client, service, delivery_callback, api_response):
-    data = {
-        "url": "https://example.com/updated-delivery",
-        "updated_by_id": str(service.users[0].id),
-    }
+@when("I update the delivery status callback", target_fixture="api_response")
+def update_delivery_callback(admin_client, service, callback):
     resp = admin_client.post(
-        f"/service/{service.id}/delivery-receipt-api/{delivery_callback.id}",
-        data=data,
+        f"/service/{service.id}/callback-api/{callback.id}",
+        data={
+            "url": "https://example.com/delivery-updated",
+            "bearer_token": "updated_secret_token_1234",
+            "updated_by_id": str(service.users[0].id),
+            "callback_type": ServiceCallbackTypes.delivery_status,
+        },
     )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the delivery receipt callback is deleted", target_fixture="api_response")
-def delete_delivery_callback(admin_client, service, delivery_callback, api_response):
+@when("I delete the delivery status callback", target_fixture="api_response")
+def delete_delivery_callback(admin_client, service, callback):
     resp = admin_client.delete(
-        f"/service/{service.id}/delivery-receipt-api/{delivery_callback.id}"
+        f"/service/{service.id}/callback-api/{callback.id}?callback_type={ServiceCallbackTypes.delivery_status}",
     )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json if resp.status_code != 204 else {}}
 
 
-@when("an inbound API callback is created", target_fixture="api_response")
-def create_inbound_callback(admin_client, service, api_response):
-    data = {
-        "url": "https://example.com/inbound",
-        "bearer_token": "some_super_secret",
-        "updated_by_id": str(service.users[0].id),
-    }
+@when("I create an inbound SMS callback for the service", target_fixture="api_response")
+def create_inbound_callback(admin_client, service):
     resp = admin_client.post(
-        f"/service/{service.id}/inbound-api",
-        data=data,
+        f"/service/{service.id}/callback-api",
+        data={
+            "url": "https://example.com/inbound-new",
+            "bearer_token": "new_secret_token_1234",
+            "updated_by_id": str(service.users[0].id),
+            "callback_type": ServiceCallbackTypes.inbound_sms,
+        },
     )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the inbound API callback is retrieved", target_fixture="api_response")
-def get_inbound_callback(admin_client, service, inbound_callback, api_response):
+@when("I get the inbound SMS callback", target_fixture="api_response")
+def get_inbound_callback(admin_client, service, callback):
     resp = admin_client.get(
-        f"/service/{service.id}/inbound-api/{inbound_callback.id}"
+        f"/service/{service.id}/callback-api/{callback.id}?callback_type={ServiceCallbackTypes.inbound_sms}",
     )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the inbound API callback URL is updated", target_fixture="api_response")
-def update_inbound_callback(admin_client, service, inbound_callback, api_response):
-    data = {
-        "url": "https://example.com/updated-inbound",
-        "updated_by_id": str(service.users[0].id),
-    }
+@when("I update the inbound SMS callback", target_fixture="api_response")
+def update_inbound_callback(admin_client, service, callback):
     resp = admin_client.post(
-        f"/service/{service.id}/inbound-api/{inbound_callback.id}",
-        data=data,
+        f"/service/{service.id}/callback-api/{callback.id}",
+        data={
+            "url": "https://example.com/inbound-updated",
+            "bearer_token": "updated_secret_token_1234",
+            "updated_by_id": str(service.users[0].id),
+            "callback_type": ServiceCallbackTypes.inbound_sms,
+        },
     )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the inbound API callback is deleted", target_fixture="api_response")
-def delete_inbound_callback(admin_client, service, inbound_callback, api_response):
+@when("I delete the inbound SMS callback", target_fixture="api_response")
+def delete_inbound_callback(admin_client, service, callback):
     resp = admin_client.delete(
-        f"/service/{service.id}/inbound-api/{inbound_callback.id}"
+        f"/service/{service.id}/callback-api/{callback.id}?callback_type={ServiceCallbackTypes.inbound_sms}",
     )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json if resp.status_code != 204 else {}}
+
+
+# -- Then steps --
+
+
+@then("the response should contain the callback details")
+def response_has_callback_details(api_response):
+    data = api_response["json"]["data"]
+    assert "id" in data
+    assert "url" in data
+    assert "callback_type" in data
+
+
+@then("the response should contain the updated callback")
+def response_has_updated_callback(api_response):
+    data = api_response["json"]["data"]
+    assert "id" in data
+    assert "url" in data
+
+
+@then("the callback should be deleted")
+def callback_is_deleted(api_response):
+    assert api_response["status_code"] == 204

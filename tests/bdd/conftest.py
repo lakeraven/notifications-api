@@ -21,8 +21,9 @@ from tests.app.db import (
     create_email_branding,
     create_inbound_number,
     create_job,
+    create_letter_branding,
     create_notification,
-    create_organization,
+    create_rate,
     create_service,
     create_template,
     create_user,
@@ -93,7 +94,7 @@ def admin_client(client):
 
 @pytest.fixture
 def service_api_client(client):
-    """Wrapper around Flask test client with service API key auth."""
+    """Wrapper around Flask test client with service API key auth (for v2 endpoints)."""
 
     class ServiceApiClient:
         def __init__(self):

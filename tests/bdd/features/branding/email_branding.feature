@@ -1,36 +1,34 @@
-Feature: Email branding
+Feature: Email branding management
   As a platform admin
-  I want to manage email branding
-  So that emails have the correct look
+  I want to manage email branding options
+  So that services can customise their email appearance
 
-  Background:
-    Given a platform admin user exists
-
-  Scenario: Get all email brandings
-    When all email brandings are retrieved
+  Scenario: List all email branding options
+    Given email branding options exist
+    When I list all email branding
     Then the response status code should be 200
 
-  Scenario: Create an email branding
-    When a new email branding "Test Brand" is created
+  Scenario: Create email branding
+    When I create email branding named "Service Brand" with colour "#005ea5"
     Then the response status code should be 201
 
-  Scenario: Get an email branding by ID
-    Given an email branding "My Brand" exists
-    When the email branding is retrieved by ID
+  Scenario: Get email branding by ID
+    Given email branding "Test Brand" exists
+    When I get the email branding by ID
     Then the response status code should be 200
-    And the response should contain the branding name "My Brand"
+    And the branding name should be "Test Brand"
 
-  Scenario: Update an email branding
-    Given an email branding "Old Brand" exists
-    When the email branding name is updated to "New Brand"
+  Scenario: Update email branding
+    Given email branding exists
+    When I update the branding name to "Updated Brand"
     Then the response status code should be 200
 
-  Scenario: Create an email branding with logo
-    When a new email branding is created with a logo
-    Then the response status code should be 201
-
-  Scenario: Get all email brandings includes custom brands
-    Given an email branding "Custom Brand" exists
-    When all email brandings are retrieved
+  Scenario: Archive email branding
+    Given email branding exists
+    When I archive the email branding
     Then the response status code should be 200
-    And the response should contain branding "Custom Brand"
+
+  Scenario: Get organisations and services using email branding
+    Given email branding is used by services
+    When I get the orgs and services for the branding
+    Then the response status code should be 200

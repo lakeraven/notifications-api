@@ -1,85 +1,81 @@
-Feature: Service settings
-  As a platform admin
-  I want to manage service settings
-  So that services are configured correctly
+Feature: Service settings management
+  As a service admin
+  I want to manage service configuration
+  So that notifications are sent correctly
 
   Background:
-    Given a platform admin user exists
-    And a service exists
+    Given a service exists
 
   Scenario: Get email reply-to addresses
-    When the email reply-to addresses are retrieved
+    Given the service has a reply-to email "replies@service.gov.uk"
+    When I get email reply-to addresses for the service
     Then the response status code should be 200
+    And the response should include "replies@service.gov.uk"
 
   Scenario: Add an email reply-to address
-    When an email reply-to address is added
+    When I add reply-to email "new-replies@service.gov.uk" to the service
     Then the response status code should be 201
 
-  Scenario: Get a specific email reply-to address
-    Given an email reply-to address exists
-    When the email reply-to address is retrieved by ID
+  Scenario: Verify a reply-to email address
+    When I verify reply-to email "verify-me@service.gov.uk"
+    Then the response status code should be 201
+
+  Scenario: Archive an email reply-to address
+    Given the service has 2 reply-to emails
+    When I archive the non-default reply-to email
     Then the response status code should be 200
 
-  Scenario: Update an email reply-to address
-    Given an email reply-to address exists
-    When the email reply-to address is updated
+  Scenario: Get SMS senders for a service
+    When I get SMS senders for the service
     Then the response status code should be 200
-
-  Scenario: Get SMS senders
-    When the SMS senders are retrieved
-    Then the response status code should be 200
+    And the response should include the default sender
 
   Scenario: Add an SMS sender
-    When an SMS sender is added
+    When I add SMS sender "07700900123" to the service
     Then the response status code should be 201
-
-  Scenario: Get a specific SMS sender
-    Given an SMS sender exists
-    When the SMS sender is retrieved by ID
-    Then the response status code should be 200
 
   Scenario: Update an SMS sender
-    Given an SMS sender exists
-    When the SMS sender is updated
+    Given the service has an SMS sender
+    When I update the SMS sender value
     Then the response status code should be 200
 
-  Scenario: Get the guest list
-    When the guest list is retrieved
+  Scenario: Archive an SMS sender
+    Given the service has 2 SMS senders
+    When I archive the non-default SMS sender
     Then the response status code should be 200
 
-  Scenario: Update the guest list
-    When the guest list is updated
-    Then the response status code should be 204
-
-  Scenario: Get data retention settings
-    When the data retention settings are retrieved
+  Scenario: Get letter contacts for a service
+    Given the service has a letter contact block
+    When I get letter contacts for the service
     Then the response status code should be 200
 
-  Scenario: Add data retention settings
-    When data retention settings are added for email
+  Scenario: Add a letter contact block
+    When I add a letter contact block to the service
     Then the response status code should be 201
 
-  Scenario: Get a specific data retention setting
-    Given data retention settings exist for email
-    When the data retention setting is retrieved by ID
+  Scenario: Get guest list
+    When I get the guest list for the service
     Then the response status code should be 200
 
-  Scenario: Update data retention settings
-    Given data retention settings exist for email
-    When the data retention setting is updated
+  Scenario: Update guest list
+    When I update the guest list with emails and phone numbers
     Then the response status code should be 204
 
-  Scenario: Get service permissions
-    When the service is retrieved by ID
-    Then the response status code should be 200
-    And the response should contain service permissions
-
-  Scenario: Update service permissions
-    When the service permissions are updated
+  Scenario: Get data retention rules
+    When I get data retention rules for the service
     Then the response status code should be 200
 
-  Scenario: Get organization for a service
-    Given the service belongs to an organization
-    When the service organization is retrieved
+  Scenario: Create a data retention rule
+    When I create a data retention rule for SMS with 7 days
+    Then the response status code should be 201
+
+  Scenario: Modify a data retention rule
+    Given a data retention rule exists for SMS
+    When I modify the retention rule to 14 days
     Then the response status code should be 200
-    And the response should contain organization details
+
+  Scenario: Get organisation for a service
+    Given the service is linked to an organisation
+    When I get the organisation for the service
+    Then the response status code should be 200
+    And the response should contain the organisation details

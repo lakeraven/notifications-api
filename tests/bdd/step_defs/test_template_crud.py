@@ -1,210 +1,239 @@
-"""Step definitions for template CRUD features."""
+"""
+Step definitions for template CRUD operations (admin API).
 
+Tests run against the Flask test client using existing test fixtures.
+"""
+
+import json
 import uuid
 
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from app.enums import TemplateType
-from tests.app.db import create_template
+from app.constants import EMAIL_TYPE, LETTER_TYPE, SMS_TYPE
+from app.dao.templates_dao import dao_update_template
+from tests.app.db import (
+    create_service,
+    create_template,
+)
 
+# Load all scenarios from the feature file
 scenarios("../features/templates/template_crud.feature")
 
 
 # -- Given steps --
 
 
+@given("the service has letter permissions", target_fixture="service")
+def service_with_letter_permissions(service):
+    from app.dao.service_permissions_dao import dao_add_service_permission
+
+    dao_add_service_permission(service.id, LETTER_TYPE)
+    return service
+
+
+@given("an SMS template exists for the service", target_fixture="template")
+def an_sms_template_exists(service, notify_db_session):
+    return create_template(service, template_type=SMS_TYPE, content="Hello ((name))")
+
+
+@given("the service has 3 templates", target_fixture="test_context")
+def service_has_3_templates(service, test_context, notify_db_session):
+    templates = []
+    for i in range(3):
+        t = create_template(
+            service,
+            template_type=SMS_TYPE,
+            content=f"Template {i} content",
+            template_name=f"Template {i}",
+        )
+        templates.append(t)
+    test_context["templates"] = templates
+    return test_context
+
+
 @given(
-    parsers.parse('an "{template_type}" template exists'),
+    parsers.parse('an SMS template exists with content "{content}"'),
     target_fixture="template",
 )
-def template_exists(notify_db_session, service, template_type):
-    tt = TemplateType(template_type)
-    return create_template(
-        service=service,
-        template_type=tt,
-        template_name=f"Test {template_type} template",
-    )
+def sms_template_with_content(service, content, notify_db_session):
+    return create_template(service, template_type=SMS_TYPE, content=content)
+
+
+@given("a template has been updated 3 times", target_fixture="template")
+def template_updated_3_times(service, notify_db_session):
+    template = create_template(service, template_type=SMS_TYPE, content="Version 1")
+    for i in range(2, 5):
+        template.content = f"Version {i}"
+        dao_update_template(template)
+    return template
+
+
+@given("a template has been updated", target_fixture="template")
+def template_updated_once(service, notify_db_session, test_context):
+    template = create_template(service, template_type=SMS_TYPE, content="Original content")
+    test_context["original_content"] = "Original content"
+    template.content = "Updated content"
+    dao_update_template(template)
+    return template
 
 
 # -- When steps --
 
 
 @when(
-    parsers.parse('an "{template_type}" template is created with name "{name}"'),
+    parsers.parse('I create an SMS template named "{name}" with content "{content}"'),
     target_fixture="api_response",
 )
-def create_template_step(admin_client, service, template_type, name, api_response):
+def create_sms_template(admin_client, service, name, content):
     data = {
         "name": name,
-        "template_type": template_type,
-        "content": "Hello ((name)), this is a test.",
+        "template_type": SMS_TYPE,
+        "content": content,
         "service": str(service.id),
-        "created_by": str(service.users[0].id),
+        "created_by": str(service.created_by.id),
     }
-    if template_type == "email":
-        data["subject"] = "Test subject"
-    resp = admin_client.post(
-        f"/service/{service.id}/template",
-        data=data,
-    )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    resp = admin_client.post(f"/service/{service.id}/template", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the template is retrieved by ID", target_fixture="api_response")
-def get_template_by_id(admin_client, service, template, api_response):
-    resp = admin_client.get(
-        f"/service/{service.id}/template/{template.id}"
-    )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+@when(
+    parsers.parse('I create an email template named "{name}" with subject "{subject}" and content "{content}"'),
+    target_fixture="api_response",
+)
+def create_email_template(admin_client, service, name, subject, content):
+    data = {
+        "name": name,
+        "template_type": EMAIL_TYPE,
+        "content": content,
+        "subject": subject,
+        "service": str(service.id),
+        "created_by": str(service.created_by.id),
+    }
+    resp = admin_client.post(f"/service/{service.id}/template", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("all templates are retrieved for the service", target_fixture="api_response")
-def get_all_templates(admin_client, service, api_response):
+@when(
+    parsers.parse('I create a letter template named "{name}" with content "{content}"'),
+    target_fixture="api_response",
+)
+def create_letter_template(admin_client, service, name, content):
+    data = {
+        "name": name,
+        "template_type": LETTER_TYPE,
+        "content": content,
+        "subject": "Letter subject",
+        "service": str(service.id),
+        "created_by": str(service.created_by.id),
+    }
+    resp = admin_client.post(f"/service/{service.id}/template", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+@when("I get the template by ID", target_fixture="api_response")
+def get_template_by_id(admin_client, service, template):
+    resp = admin_client.get(f"/service/{service.id}/template/{template.id}")
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+@when("I list all templates for the service", target_fixture="api_response")
+def list_all_templates(admin_client, service):
     resp = admin_client.get(f"/service/{service.id}/template")
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
-    parsers.parse('the template name is updated to "{name}"'),
+    parsers.parse('I update the template content to "{content}"'),
     target_fixture="api_response",
 )
-def update_template_name(admin_client, service, template, name, api_response):
+def update_template_content(admin_client, service, template, content, test_context):
+    test_context["original_version"] = template.version
     data = {
-        "name": name,
-        "content": template.content,
-        "created_by": str(service.users[0].id),
+        "content": content,
+        "created_by": str(service.created_by.id),
     }
-    if template.template_type != TemplateType.SMS:
-        data["subject"] = template.subject
-    resp = admin_client.post(
-        f"/service/{service.id}/template/{template.id}",
-        data=data,
-    )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    resp = admin_client.post(f"/service/{service.id}/template/{template.id}", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+@when("I get all versions of the template", target_fixture="api_response")
+def get_all_versions(admin_client, service, template):
+    resp = admin_client.get(f"/service/{service.id}/template/{template.id}/versions")
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
-    parsers.parse("the template version {version:d} is retrieved"),
+    parsers.parse("I get version {version:d} of the template"),
     target_fixture="api_response",
 )
-def get_template_version(admin_client, service, template, version, api_response):
-    resp = admin_client.get(
-        f"/service/{service.id}/template/{template.id}/version/{version}"
-    )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
-
-
-@when("all template versions are retrieved", target_fixture="api_response")
-def get_all_template_versions(admin_client, service, template, api_response):
-    resp = admin_client.get(
-        f"/service/{service.id}/template/{template.id}/versions"
-    )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
-
-
-@when("the template preview is requested", target_fixture="api_response")
-def get_template_preview(admin_client, service, template, api_response):
-    resp = admin_client.get(
-        f"/service/{service.id}/template/{template.id}/preview"
-    )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+def get_specific_version(admin_client, service, template, version):
+    resp = admin_client.get(f"/service/{service.id}/template/{template.id}/version/{version}")
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
-    'an "email" template is created with personalisation',
+    parsers.parse('I preview the template with personalisation name "{value}"'),
     target_fixture="api_response",
 )
-def create_template_with_personalisation(admin_client, service, api_response):
+def preview_template(admin_client, service, template):
+    resp = admin_client.get(f"/service/{service.id}/template/{template.id}/preview")
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+@when(
+    parsers.parse('I create an SMS template with content "{content}"'),
+    target_fixture="api_response",
+)
+def create_sms_template_with_content(admin_client, service, content):
     data = {
-        "name": "Personalised template",
-        "template_type": "email",
-        "content": "Hello ((name)), your ref is ((reference)).",
-        "subject": "Your update ((name))",
+        "name": f"Template {uuid.uuid4()}",
+        "template_type": SMS_TYPE,
+        "content": content,
         "service": str(service.id),
-        "created_by": str(service.users[0].id),
+        "created_by": str(service.created_by.id),
     }
-    resp = admin_client.post(
-        f"/service/{service.id}/template",
-        data=data,
-    )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
-
-
-@when("the template content is updated", target_fixture="api_response")
-def update_template_content(admin_client, service, template, api_response):
-    data = {
-        "name": template.name,
-        "content": "Updated content for the template.",
-        "created_by": str(service.users[0].id),
-    }
-    if template.template_type != TemplateType.SMS:
-        data["subject"] = template.subject
-    resp = admin_client.post(
-        f"/service/{service.id}/template/{template.id}",
-        data=data,
-    )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    resp = admin_client.post(f"/service/{service.id}/template", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
-    parsers.parse('a template is created with invalid type "{template_type}"'),
+    "I create an SMS template with content longer than the character limit",
     target_fixture="api_response",
 )
-def create_template_invalid_type(admin_client, service, template_type, api_response):
+def create_sms_template_too_long(admin_client, service):
+    long_content = "x" * 10000
     data = {
-        "name": "Bad template",
-        "template_type": template_type,
-        "content": "Hello.",
+        "name": "Too Long Template",
+        "template_type": SMS_TYPE,
+        "content": long_content,
         "service": str(service.id),
-        "created_by": str(service.users[0].id),
+        "created_by": str(service.created_by.id),
     }
-    resp = admin_client.post(
-        f"/service/{service.id}/template",
-        data=data,
-    )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    resp = admin_client.post(f"/service/{service.id}/template", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("a template is created with an empty name", target_fixture="api_response")
-def create_template_empty_name(admin_client, service, api_response):
+@when("I archive the template", target_fixture="api_response")
+def archive_template(admin_client, service, template):
     data = {
-        "name": "",
-        "template_type": "email",
-        "content": "Hello.",
-        "subject": "Test",
-        "service": str(service.id),
-        "created_by": str(service.users[0].id),
+        "archived": True,
+        "created_by": str(service.created_by.id),
     }
-    resp = admin_client.post(
-        f"/service/{service.id}/template",
-        data=data,
-    )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    resp = admin_client.post(f"/service/{service.id}/template/{template.id}", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 # -- Then steps --
+
+
+@then(parsers.parse('the template type should be "{template_type}"'))
+def template_type_is(api_response, template_type):
+    assert api_response["json"]["data"]["template_type"] == template_type
+
+
+@then(parsers.parse("the template version should be {version:d}"))
+def template_version_is(api_response, version):
+    assert api_response["json"]["data"]["version"] == version
 
 
 @then("the response should contain the template details")
@@ -212,22 +241,40 @@ def response_has_template_details(api_response):
     data = api_response["json"]["data"]
     assert "id" in data
     assert "name" in data
+    assert "content" in data
+    assert "template_type" in data
 
 
-@then("the response should contain a list of templates")
-def response_has_templates_list(api_response):
-    data = api_response["json"]["data"]
-    assert isinstance(data, list)
-    assert len(data) > 0
+@then(parsers.parse("the response should contain {count:d} templates"))
+def response_has_n_templates(api_response, count):
+    templates = api_response["json"]["data"]
+    assert len(templates) == count
 
 
-@then(parsers.parse('the response should contain the template name "{name}"'))
-def response_has_template_name(api_response, name):
-    data = api_response["json"]["data"]
-    assert data["name"] == name
+@then("the template version should be incremented")
+def template_version_incremented(api_response, test_context):
+    new_version = api_response["json"]["data"]["version"]
+    assert new_version > test_context["original_version"]
 
 
-@then("the response should contain the template body")
-def response_has_template_body(api_response):
-    data = api_response["json"]
-    assert "body" in data or "content" in data.get("data", data)
+@then(parsers.parse("the response should contain {count:d} versions"))
+def response_has_n_versions(api_response, count):
+    versions = api_response["json"]["data"]
+    assert len(versions) == count
+
+
+@then("the template content should be the original")
+def template_content_is_original(api_response, test_context):
+    content = api_response["json"]["data"]["content"]
+    assert content == test_context["original_content"]
+
+
+@then(parsers.parse('the preview should contain "{text}"'))
+def preview_contains(api_response, text):
+    content = api_response["json"]["data"]["content"]
+    assert text in content
+
+
+@then("the template should be archived")
+def template_is_archived(api_response):
+    assert api_response["json"]["data"]["archived"] is True

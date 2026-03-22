@@ -1,68 +1,74 @@
-Feature: Template CRUD
+Feature: Template CRUD operations (admin API)
   As a service admin
-  I want to manage notification templates
-  So that I can define message content
+  I want to create and manage notification templates
+  So that I can control message content
 
   Background:
-    Given a platform admin user exists
-    And a service exists
-
-  Scenario: Create an email template
-    When an "email" template is created with name "Email Template"
-    Then the response status code should be 201
-    And the response should contain the template details
+    Given a service exists
 
   Scenario: Create an SMS template
-    When an "sms" template is created with name "SMS Template"
+    When I create an SMS template named "Reminder" with content "Your appointment is on ((date))"
     Then the response status code should be 201
+    And the template type should be "sms"
+    And the template version should be 1
+
+  Scenario: Create an email template
+    When I create an email template named "Welcome" with subject "Welcome!" and content "Hello ((name))"
+    Then the response status code should be 201
+    And the template type should be "email"
+
+  Scenario: Create a letter template
+    Given the service has letter permissions
+    When I create a letter template named "Notice" with content "Dear ((name))"
+    Then the response status code should be 201
+    And the template type should be "letter"
 
   Scenario: Get a template by ID
-    Given an "email" template exists
-    When the template is retrieved by ID
+    Given an SMS template exists for the service
+    When I get the template by ID
     Then the response status code should be 200
     And the response should contain the template details
 
-  Scenario: Get all templates for a service
-    Given an "email" template exists
-    When all templates are retrieved for the service
+  Scenario: List all templates for a service
+    Given the service has 3 templates
+    When I list all templates for the service
     Then the response status code should be 200
-    And the response should contain a list of templates
+    And the response should contain 3 templates
 
   Scenario: Update a template
-    Given an "email" template exists
-    When the template name is updated to "Updated Template"
+    Given an SMS template exists with content "Old content"
+    When I update the template content to "New content ((name))"
     Then the response status code should be 200
-    And the response should contain the template name "Updated Template"
+    And the template version should be incremented
+
+  Scenario: Get template versions
+    Given a template has been updated 3 times
+    When I get all versions of the template
+    Then the response status code should be 200
+    And the response should contain 4 versions
 
   Scenario: Get a specific template version
-    Given an "email" template exists
-    When the template version 1 is retrieved
+    Given a template has been updated
+    When I get version 1 of the template
     Then the response status code should be 200
-
-  Scenario: Get all template versions
-    Given an "email" template exists
-    When all template versions are retrieved
-    Then the response status code should be 200
+    And the template content should be the original
 
   Scenario: Preview a template
-    Given an "email" template exists
-    When the template preview is requested
+    Given an SMS template exists with content "Hello ((name))"
+    When I preview the template with personalisation name "World"
     Then the response status code should be 200
-    And the response should contain the template body
+    And the preview should contain "Hello World"
 
-  Scenario: Create a template with personalisation
-    When an "email" template is created with personalisation
+  Scenario: Reject template with invalid placeholders
+    When I create an SMS template with content "Hello ((name)) and ((missing))"
     Then the response status code should be 201
 
-  Scenario: Update a template content
-    Given an "email" template exists
-    When the template content is updated
-    Then the response status code should be 200
-
-  Scenario: Cannot create a template with invalid type
-    When a template is created with invalid type "fax"
+  Scenario: Reject template that exceeds SMS character limit
+    When I create an SMS template with content longer than the character limit
     Then the response status code should be 400
 
-  Scenario: Create a template with empty name
-    When a template is created with an empty name
-    Then the response status code should be 201
+  Scenario: Archive a template
+    Given an SMS template exists for the service
+    When I archive the template
+    Then the response status code should be 200
+    And the template should be archived

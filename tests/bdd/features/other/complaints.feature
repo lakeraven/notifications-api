@@ -1,18 +1,16 @@
-Feature: Complaints
+Feature: Complaint management
   As a platform admin
-  I want to view complaints
-  So that I can monitor email issues
+  I want to view email complaints
+  So that I can manage delivery reputation
 
-  Background:
-    Given a platform admin user exists
-
-  Scenario: Get all complaints
-    Given a complaint exists
-    When all complaints are retrieved
+  Scenario: List all complaints
+    Given email complaints have been recorded
+    When I list all complaints
     Then the response status code should be 200
-    And the response should contain a list of complaints
+    And the response should include complaint details
 
-  Scenario: Get complaint count by date range
-    Given a complaint exists
-    When the complaint count is retrieved for today
+  Scenario: Count complaints by date range
+    Given email complaints exist in a date range
+    When I count complaints for the date range
     Then the response status code should be 200
+    And the response should include a count

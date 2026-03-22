@@ -1,24 +1,23 @@
-Feature: Service users
-  As a platform admin
-  I want to manage users on a service
-  So that I can control access
+Feature: Service user management
+  As a service admin
+  I want to manage users on my service
+  So that the right people have access
 
   Background:
-    Given a platform admin user exists
-    And a service exists
+    Given a service exists with an admin user
 
-  Scenario: Get users for a service
-    When the service users are retrieved
+  Scenario: List users for a service
+    When I list users for the service
     Then the response status code should be 200
-    And the response should contain a list of users
+    And the response should contain at least 1 user
 
   Scenario: Add a user to a service
     Given a new user exists
-    When the user is added to the service
-    Then the response status code should be 201
+    When I add the user to the service
+    Then the response status code should be 200
 
   Scenario: Remove a user from a service
-    Given a new user exists
-    And the user is added to the service
-    When the user is removed from the service
-    Then the response status code should be 204
+    Given the service has 2 users
+    When I remove the second user from the service
+    Then the response status code should be 200
+    And the service should have 1 user

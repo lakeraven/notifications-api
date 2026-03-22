@@ -1,11 +1,8 @@
-Feature: Events
-  As a platform admin
-  I want to create events
-  So that important actions are recorded
+Feature: Audit event creation
+  As the platform
+  I want to record audit events
+  So that actions are traceable
 
-  Background:
-    Given a platform admin user exists
-
-  Scenario: Create an event
-    When an event is created with type "sucessful_login"
+  Scenario: Create an audit event
+    When I create an event of type "sucessful_login" for a user
     Then the response status code should be 201

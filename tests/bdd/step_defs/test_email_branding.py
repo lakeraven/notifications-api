@@ -1,10 +1,13 @@
-"""Step definitions for email branding features."""
+"""
+Step definitions for email branding management.
+"""
 
+import json
 import uuid
 
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from tests.app.db import create_email_branding
+from tests.app.db import create_email_branding, create_organisation, create_service
 
 scenarios("../features/branding/email_branding.feature")
 
@@ -12,96 +15,92 @@ scenarios("../features/branding/email_branding.feature")
 # -- Given steps --
 
 
-@given(
-    parsers.parse('an email branding "{name}" exists'),
-    target_fixture="email_branding",
-)
-def email_branding_exists(notify_db_session, name):
+@given("email branding options exist", target_fixture="email_branding")
+def email_branding_options_exist(notify_db_session):
+    return create_email_branding(name=f"Brand {uuid.uuid4()}")
+
+
+@given(parsers.parse('email branding "{name}" exists'), target_fixture="email_branding")
+def email_branding_named_exists(notify_db_session, name):
     return create_email_branding(name=name)
+
+
+@given("email branding exists", target_fixture="email_branding")
+def email_branding_exists(notify_db_session):
+    return create_email_branding(name=f"Brand {uuid.uuid4()}")
+
+
+@given("email branding is used by services", target_fixture="email_branding")
+def email_branding_used_by_services(notify_db_session):
+    branding = create_email_branding(name=f"Used Brand {uuid.uuid4()}")
+    svc = create_service(service_name=f"Branded Svc {uuid.uuid4()}", email_branding=branding)
+    return branding
 
 
 # -- When steps --
 
 
-@when("all email brandings are retrieved", target_fixture="api_response")
-def get_all_email_brandings(admin_client, api_response):
+@when("I list all email branding", target_fixture="api_response")
+def list_email_branding(admin_client):
     resp = admin_client.get("/email-branding")
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
-    parsers.parse('a new email branding "{name}" is created'),
+    parsers.parse('I create email branding named "{name}" with colour "{colour}"'),
     target_fixture="api_response",
 )
-def create_new_email_branding(admin_client, api_response, name):
-    data = {
-        "name": name,
-        "colour": "#000000",
-        "logo": "test_logo.png",
-        "text": name,
-    }
-    resp = admin_client.post("/email-branding", data=data)
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+def create_email_branding_api(admin_client, name, colour):
+    resp = admin_client.post(
+        "/email-branding",
+        data={
+            "name": name,
+            "colour": colour,
+            "logo": "test_x2.png",
+            "alt_text": name,
+        },
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the email branding is retrieved by ID", target_fixture="api_response")
-def get_email_branding_by_id(admin_client, email_branding, api_response):
+@when("I get the email branding by ID", target_fixture="api_response")
+def get_email_branding_by_id(admin_client, email_branding):
     resp = admin_client.get(f"/email-branding/{email_branding.id}")
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
-    parsers.parse('the email branding name is updated to "{name}"'),
+    parsers.parse('I update the branding name to "{name}"'),
     target_fixture="api_response",
 )
-def update_email_branding_name(admin_client, email_branding, name, api_response):
-    data = {
-        "name": name,
-        "colour": email_branding.colour,
-        "logo": email_branding.logo,
-        "text": name,
-    }
+def update_email_branding(admin_client, email_branding, name):
     resp = admin_client.post(
         f"/email-branding/{email_branding.id}",
-        data=data,
+        data={
+            "name": name,
+            "colour": email_branding.colour,
+            "logo": email_branding.logo,
+            "alt_text": name,
+        },
     )
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("a new email branding is created with a logo", target_fixture="api_response")
-def create_email_branding_with_logo(admin_client, api_response):
-    data = {
-        "name": f"Logo Brand {uuid.uuid4()}",
-        "colour": "#FF0000",
-        "logo": "custom_logo.png",
-        "text": "Logo Brand",
-    }
-    resp = admin_client.post("/email-branding", data=data)
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+@when("I archive the email branding", target_fixture="api_response")
+def archive_email_branding(admin_client, email_branding):
+    resp = admin_client.post(f"/email-branding/{email_branding.id}/archive")
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+@when("I get the orgs and services for the branding", target_fixture="api_response")
+def get_orgs_and_services_for_branding(admin_client, email_branding):
+    resp = admin_client.get(f"/email-branding/{email_branding.id}/orgs-and-services")
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 # -- Then steps --
 
 
-@then(parsers.parse('the response should contain the branding name "{name}"'))
-def response_has_branding_name(api_response, name):
-    data = api_response["json"]["email_branding"]
-    assert data["name"] == name
-
-
-@then(parsers.parse('the response should contain branding "{name}"'))
-def response_contains_branding(api_response, name):
-    data = api_response["json"]["email_branding"]
-    assert isinstance(data, list)
-    names = [b["name"] for b in data]
-    assert name in names
+@then(parsers.parse('the branding name should be "{name}"'))
+def branding_name_is(api_response, name):
+    assert api_response["json"]["name"] == name

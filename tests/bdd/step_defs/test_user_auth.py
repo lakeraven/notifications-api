@@ -1,146 +1,162 @@
-"""Step definitions for user authentication features."""
+"""
+Step definitions for user authentication flows.
 
-from unittest.mock import patch, MagicMock
+Tests run against the Flask test client using existing test fixtures.
+"""
 
-from pytest_bdd import given, scenarios, then, when
+import json
+import uuid
 
+from pytest_bdd import given, parsers, scenarios, then, when
+
+from app.constants import EMAIL_TYPE, SMS_TYPE
+from app.dao.users_dao import create_secret_code, create_user_code
+from tests.app.db import (
+    create_user,
+    create_webauthn_credential,
+)
+
+# Load all scenarios from the feature file
 scenarios("../features/users/user_auth.feature")
 
 
 # -- Given steps --
 
 
-@given("an SMS verification code has been sent", target_fixture="sms_code")
-def sms_code_sent(user, notify_db_session):
-    from app.dao.users_dao import create_user_code
-    from app.enums import CodeType
+@given("an active user exists with a password", target_fixture="user")
+def active_user_with_password(notify_db_session):
+    return create_user(
+        email=f"authuser-{uuid.uuid4()}@example.gov.uk",
+        state="active",
+    )
 
-    code = "123456"
-    create_user_code(user, code, CodeType.SMS)
+
+@given("the user has a pending 2FA code", target_fixture="verify_code")
+def user_has_pending_2fa(user, notify_db_session):
+    code = create_secret_code()
+    create_user_code(user, code, SMS_TYPE)
     return code
+
+
+@given("the user has failed login attempts")
+def user_has_failed_logins(user, notify_db_session):
+    user.failed_login_count = 3
+    from app.dao.users_dao import save_model_user
+
+    save_model_user(user)
+
+
+@given("the user has a WebAuthn credential", target_fixture="webauthn_cred")
+def user_has_webauthn(user, notify_db_session):
+    return create_webauthn_credential(user, name="test-key")
+
+
+@given("a pending user exists", target_fixture="pending_user")
+def a_pending_user(notify_db_session):
+    return create_user(
+        email=f"pending-{uuid.uuid4()}@example.gov.uk",
+        state="pending",
+    )
 
 
 # -- When steps --
 
 
-@when("the user's password is verified", target_fixture="api_response")
-def verify_password(admin_client, user, api_response):
+@when("I verify the user's password", target_fixture="api_response")
+def verify_correct_password(admin_client, user):
     data = {"password": "password"}
     resp = admin_client.post(f"/user/{user.id}/verify/password", data=data)
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("an incorrect password is verified", target_fixture="api_response")
-def verify_wrong_password(admin_client, user, api_response):
-    data = {"password": "wrong-password"}
+@when("I verify an incorrect password", target_fixture="api_response")
+def verify_incorrect_password(admin_client, user):
+    data = {"password": "wrong-password-123"}
     resp = admin_client.post(f"/user/{user.id}/verify/password", data=data)
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("an SMS verification code is requested", target_fixture="api_response")
-def request_sms_code(admin_client, user, api_response):
-    with patch("app.user.rest.create_2fa_code"):
-        resp = admin_client.post(f"/user/{user.id}/sms-code", data={})
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+@when("I request an SMS 2FA code for the user", target_fixture="api_response")
+def request_sms_2fa(admin_client, user, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    data = {}
+    resp = admin_client.post(f"/user/{user.id}/sms-code", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("an email verification code is requested", target_fixture="api_response")
-def request_email_code(admin_client, user, api_response):
-    with patch("app.user.rest.create_2fa_code"):
-        resp = admin_client.post(f"/user/{user.id}/email-code", data={})
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+@when("I request an email 2FA code for the user", target_fixture="api_response")
+def request_email_2fa(admin_client, user, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
+    data = {}
+    resp = admin_client.post(f"/user/{user.id}/email-code", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the SMS code is verified", target_fixture="api_response")
-def verify_sms_code(admin_client, user, sms_code, api_response):
-    data = {"code_type": "sms", "code": sms_code}
+@when("I verify the correct 2FA code", target_fixture="api_response")
+def verify_correct_2fa(admin_client, user, verify_code):
+    data = {
+        "code": verify_code,
+        "code_type": SMS_TYPE,
+    }
     resp = admin_client.post(f"/user/{user.id}/verify/code", data=data)
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("a wrong SMS code is verified", target_fixture="api_response")
-def verify_wrong_sms_code(admin_client, user, api_response):
-    data = {"code_type": "sms", "code": "00000"}
+@when("I verify an incorrect 2FA code", target_fixture="api_response")
+def verify_incorrect_2fa(admin_client, user, verify_code):
+    data = {
+        "code": "000000",
+        "code_type": SMS_TYPE,
+    }
     resp = admin_client.post(f"/user/{user.id}/verify/code", data=data)
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the user's failed login count is reset", target_fixture="api_response")
-def reset_failed_login_count(admin_client, user, api_response):
-    resp = admin_client.post(f"/user/{user.id}/reset-failed-login-count")
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+@when("I reset the failed login count", target_fixture="api_response")
+def reset_failed_login_count(admin_client, user):
+    resp = admin_client.post(f"/user/{user.id}/reset-failed-login-count", data={})
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the user is retrieved by email", target_fixture="api_response")
-def get_user_by_email(admin_client, user, api_response):
-    resp = admin_client.get(f"/user/email?email={user.email_address}")
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json()
-    return api_response
+@when("I complete the WebAuthn login flow", target_fixture="api_response")
+def complete_webauthn_login(admin_client, user, webauthn_cred):
+    data = {
+        "successful": True,
+        "webauthn_credential_id": str(webauthn_cred.id),
+    }
+    resp = admin_client.post(f"/user/{user.id}/complete/webauthn-login", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("a nonexistent user is retrieved by email", target_fixture="api_response")
-def get_nonexistent_user_by_email(admin_client, api_response):
-    resp = admin_client.get("/user/email?email=nonexistent@example.gov.uk")
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+@when("I request a password reset for the user", target_fixture="api_response")
+def request_password_reset(admin_client, user, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
+    data = {"email": user.email_address}
+    resp = admin_client.post("/user/reset-password", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the user is activated", target_fixture="api_response")
-def activate_user(admin_client, user, notify_db_session, api_response):
-    # Set user to pending first so activate doesn't fail with "User already active"
-    from app.dao.users_dao import save_user_attribute
-    from app.enums import UserState
-
-    save_user_attribute(user, update_dict={"state": UserState.PENDING})
-    resp = admin_client.post(f"/user/{user.id}/activate")
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+@when("I update the user's password", target_fixture="api_response")
+def update_password(admin_client, user):
+    data = {"_password": "NewValidPassword456!"}
+    resp = admin_client.post(f"/user/{user.id}/update-password", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("the user is deactivated", target_fixture="api_response")
-def deactivate_user(admin_client, user, api_response):
-    resp = admin_client.post(f"/user/{user.id}/deactivate")
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+@when("I send the email verification", target_fixture="api_response")
+def send_email_verification(admin_client, pending_user, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
+    data = {}
+    resp = admin_client.post(f"/user/{pending_user.id}/email-verification", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("an email verification is sent", target_fixture="api_response")
-def send_email_verification(admin_client, user, api_response):
-    import uuid as _uuid
-    from app.enums import TemplateType
-
-    mock_template = MagicMock(
-        id=_uuid.uuid4(),
-        version=1,
-        template_type=TemplateType.EMAIL,
-        service=MagicMock(get_default_reply_to_email_address=MagicMock(return_value=None)),
-    )
-    mock_notification = MagicMock(id=_uuid.uuid4(), personalisation={})
-    with patch("app.user.rest.dao_get_template_by_id", return_value=mock_template), \
-         patch("app.user.rest.db.session.get", return_value=mock_template.service), \
-         patch("app.user.rest.persist_notification", return_value=mock_notification), \
-         patch("app.user.rest.redis_store"), \
-         patch("app.user.rest.send_notification_to_queue"):
-        data = {"to": user.email_address}
-        resp = admin_client.post(f"/user/{user.id}/email-verification", data=data)
-    api_response["status_code"] = resp.status_code
-    api_response["json"] = resp.get_json() if resp.data else None
-    return api_response
+@when(
+    parsers.parse('I send a change email verification to "{email}"'),
+    target_fixture="api_response",
+)
+def send_change_email_verification(admin_client, user, email, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
+    data = {"email": email}
+    resp = admin_client.post(f"/user/{user.id}/change-email-verification", data=data)
+    return {"status_code": resp.status_code, "json": resp.json}

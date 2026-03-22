@@ -1062,3 +1062,33 @@ def create_webauthn_credential(
     db.session.add(webauthn_credential)
     db.session.commit()
     return webauthn_credential
+
+
+# -- GOV.UK compatibility aliases and stubs --
+
+# British spelling alias
+create_organisation = create_organization
+
+
+def create_letter_branding(name="HM Government", filename="hm-government"):
+    """Stub for GOV.UK letter branding. Returns a minimal dict since we don't have the model."""
+    # TODO: Add LetterBranding model for full GOV.UK convergence
+    from unittest.mock import MagicMock
+
+    lb = MagicMock()
+    lb.id = uuid.uuid4()
+    lb.name = name
+    lb.filename = filename
+    return lb
+
+
+def create_letter_contact(service, contact_block="10 Downing Street", is_default=True):
+    """Stub for GOV.UK letter contact. Returns a minimal mock."""
+    from unittest.mock import MagicMock
+
+    lc = MagicMock()
+    lc.id = uuid.uuid4()
+    lc.service_id = service.id
+    lc.contact_block = contact_block
+    lc.is_default = is_default
+    return lc

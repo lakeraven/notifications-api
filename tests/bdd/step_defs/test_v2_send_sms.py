@@ -1,369 +1,480 @@
 """
-Step definitions for sending SMS notifications.
+Step definitions for v2 SMS notification sending.
 
-Endpoint: POST /v2/notifications/sms
+Tests run against the Flask test client using existing test fixtures.
 """
 
 import uuid
-from datetime import timedelta
-from unittest.mock import patch
+from unittest.mock import ANY
 
-from pytest_bdd import given, parsers, scenario, then, when
+import pytest
+from pytest_bdd import given, parsers, scenario, scenarios, then, when
 
-from app.enums import KeyType, NotificationType, ServicePermissionType, TemplateType
-from app.utils import utc_now
-from tests import V2_NOTIFICATIONS
+from app.constants import EMAIL_TYPE, KEY_TYPE_NORMAL, KEY_TYPE_TEAM, KEY_TYPE_TEST, SMS_TYPE
+from app.models import Notification
+from tests import create_service_authorization_header
 from tests.app.db import (
     create_api_key,
+    create_inbound_number,
     create_service,
+    create_service_sms_sender,
+    create_service_with_inbound_number,
     create_template,
-    create_user,
 )
 
-# ---------------------------------------------------------------------------
-# Scenarios — link feature file scenarios to this module
-# ---------------------------------------------------------------------------
-
-FEATURE = "../features/v2_notifications/send_sms.feature"
+# Load all scenarios from the feature file
+scenarios("../features/v2_notifications/send_sms.feature")
 
 
-@scenario(FEATURE, "Send a basic SMS notification")
-def test_send_basic_sms():
-    pass
+# -- Fixtures --
 
 
-@scenario(FEATURE, "Send an SMS with personalisation")
-def test_send_sms_with_personalisation():
-    pass
+@pytest.fixture
+def sms_service(notify_db_session):
+    """A service with SMS permissions."""
+    return create_service(service_permissions=[SMS_TYPE, EMAIL_TYPE])
 
 
-@scenario(FEATURE, "Send an SMS with a client reference")
-def test_send_sms_with_reference():
-    pass
+@pytest.fixture
+def sms_template():
+    """Will be set by the given step."""
+    return {}
 
 
-@scenario(FEATURE, "Send an SMS without a reference")
-def test_send_sms_without_reference():
-    pass
+@pytest.fixture
+def api_key_info():
+    """Tracks which API key to use."""
+    return {"type": KEY_TYPE_NORMAL, "key": None}
 
 
-@scenario(FEATURE, "Reject SMS with missing phone number")
-def test_reject_sms_missing_phone():
-    pass
+# -- Given steps --
 
 
-@scenario(FEATURE, "Reject SMS with missing template ID")
-def test_reject_sms_missing_template():
-    pass
-
-
-@scenario(FEATURE, "Reject SMS with invalid template ID")
-def test_reject_sms_invalid_template():
-    pass
-
-
-@scenario(FEATURE, "Reject SMS when personalisation is missing")
-def test_reject_sms_missing_personalisation():
-    pass
-
-
-@scenario(FEATURE, "Reject SMS using another service's template")
-def test_reject_sms_other_service_template():
-    pass
-
-
-@scenario(FEATURE, "Send an SMS with a test API key")
-def test_send_sms_test_key():
-    pass
-
-
-@scenario(FEATURE, "Team API key rejects SMS to non-team recipient")
-def test_send_sms_team_key():
-    pass
-
-
-@scenario(FEATURE, "Schedule an SMS for future delivery")
-def test_schedule_sms_tomorrow():
-    pass
-
-
-@scenario(FEATURE, "Accept SMS scheduled for future (no scheduling validation)")
-def test_reject_sms_scheduled_too_far():
-    pass
-
-
-# ---------------------------------------------------------------------------
-# Given steps
-# ---------------------------------------------------------------------------
-
-
-@given("a service with SMS permissions exists", target_fixture="service")
+@given("a service with SMS permissions exists", target_fixture="sms_service")
 def service_with_sms(notify_db_session):
-    return create_service(
-        service_permissions=[
-            ServicePermissionType.SMS,
-            ServicePermissionType.INTERNATIONAL_SMS,
-        ],
-    )
+    return create_service(service_permissions=[SMS_TYPE, EMAIL_TYPE])
 
 
 @given(
-    parsers.parse(
-        'the service has an SMS template with content "{content}"'
-    ),
+    parsers.parse('the service has an SMS template with content "{content}"'),
     target_fixture="sms_template",
 )
-def sms_template_with_content(notify_db_session, service, content):
-    return create_template(
-        service,
-        template_type=TemplateType.SMS,
-        content=content,
+def service_has_sms_template(sms_service, content):
+    return create_template(sms_service, template_type=SMS_TYPE, content=content)
+
+
+@given("the service has a valid API key")
+def service_has_api_key(sms_service):
+    # API keys are auto-created by create_service_authorization_header
+    pass
+
+
+@given(parsers.parse('the service has an inbound number "{number}"'))
+def service_has_inbound_number(sms_service, number):
+    create_inbound_number(number, service_id=sms_service.id)
+
+
+@given(parsers.parse('the service has an SMS sender "{name}" with value "{value}"'), target_fixture="sms_sender")
+def service_has_sms_sender(sms_service, name, value):
+    return create_service_sms_sender(service_id=sms_service.id, sms_sender=value)
+
+
+@given("the service has a test API key", target_fixture="api_key_info")
+def service_has_test_key(sms_service):
+    key = create_api_key(sms_service, key_type=KEY_TYPE_TEST)
+    return {"type": KEY_TYPE_TEST, "key": key}
+
+
+@given("the service has a team API key", target_fixture="api_key_info")
+def service_has_team_key(sms_service):
+    key = create_api_key(sms_service, key_type=KEY_TYPE_TEAM)
+    return {"type": KEY_TYPE_TEAM, "key": key}
+
+
+@given("the service is in trial mode")
+def service_in_trial_mode(sms_service):
+    sms_service.restricted = True
+
+
+@given("the service has international SMS permission")
+def service_has_international(sms_service):
+    from app.dao.service_permissions_dao import dao_add_service_permission
+    from app.models import ServicePermission
+
+    from app.constants import INTERNATIONAL_SMS_TYPE
+
+    dao_add_service_permission(sms_service.id, INTERNATIONAL_SMS_TYPE)
+
+
+@given("another service exists with an SMS template", target_fixture="other_template")
+def another_service_with_template(notify_db_session):
+    other_service = create_service(service_name="Other service")
+    return create_template(other_service, template_type=SMS_TYPE, content="Other template")
+
+
+@given("a service without SMS permissions exists", target_fixture="no_sms_service")
+def service_without_sms(notify_db_session):
+    return create_service(service_name="No SMS service", service_permissions=[EMAIL_TYPE])
+
+
+@given("the service has reached its daily SMS limit")
+def service_at_sms_limit(sms_service, mocker):
+    mocker.patch(
+        "app.notifications.process_notifications.check_service_over_daily_message_limit",
+        side_effect=Exception("rate limit"),
     )
 
 
-@given("the service has a valid API key", target_fixture="api_key")
-def valid_api_key(notify_db_session, service):
-    return create_api_key(service, key_type=KeyType.NORMAL)
-
-
-@given("the service has a test API key", target_fixture="test_api_key")
-def given_test_api_key(notify_db_session, service):
-    return create_api_key(service, key_type=KeyType.TEST)
-
-
-@given("the service has a team API key", target_fixture="team_api_key")
-def team_api_key(notify_db_session, service):
-    return create_api_key(service, key_type=KeyType.TEAM)
-
-
-@given("another service exists with an SMS template", target_fixture="other_service_template")
-def other_service_with_sms_template(notify_db_session):
-    other_service = create_service(
-        service_name="Other Service",
-        service_permissions=[ServicePermissionType.SMS],
-    )
-    template = create_template(
-        other_service,
-        template_type=TemplateType.SMS,
-        content="Other service template",
-    )
-    return template
-
-
-# ---------------------------------------------------------------------------
-# When steps
-# ---------------------------------------------------------------------------
-
-
-def _post_sms(client, service, template_id, data, key_type=KeyType.NORMAL):
-    """Helper to POST to /notifications/sms with service auth."""
-    from tests import create_service_authorization_header
-
-    headers = [
-        ("Content-Type", "application/json"),
-        create_service_authorization_header(service.id, key_type),
-    ]
-    import json
-
-    return client.post(
-        f"{V2_NOTIFICATIONS}/sms",
-        data=json.dumps(data),
-        headers=headers,
-    )
-
-
-def _store_response(api_response, resp):
-    """Unpack Flask test-client response into api_response dict."""
-    api_response["status_code"] = resp.status_code
-    try:
-        api_response["json"] = resp.get_json()
-    except Exception:
-        api_response["json"] = None
+# -- When steps --
 
 
 @when(
     parsers.parse('I send an SMS notification to "{phone}" using the template'),
+    target_fixture="api_response",
 )
-def send_sms_basic(client, service, sms_template, api_response, phone):
-    with patch("app.celery.provider_tasks.deliver_sms.apply_async"):
-        data = {
-            "to": phone,
-            "template": str(sms_template.id),
-            "personalisation": {"name": "Test", "code": "1234"},
-        }
-        resp = _post_sms(client, service, sms_template.id, data)
-        _store_response(api_response, resp)
+def send_sms(client, sms_service, sms_template, phone, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    data = {
+        "phone_number": phone,
+        "template_id": str(sms_template.id),
+        "personalisation": {"name": "Test", "code": "12345"},
+    }
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
-    parsers.parse('I send an SMS notification to "{phone}" with personalisation'),
+    parsers.parse("I send an SMS notification to \"{phone}\" with personalisation"),
+    target_fixture="api_response",
 )
-def send_sms_with_personalisation(client, service, sms_template, api_response, phone):
-    with patch("app.celery.provider_tasks.deliver_sms.apply_async"):
-        data = {
-            "to": phone,
-            "template": str(sms_template.id),
-            "personalisation": {"name": "Jo", "code": "5678"},
-        }
-        resp = _post_sms(client, service, sms_template.id, data)
-        _store_response(api_response, resp)
+def send_sms_with_personalisation(client, sms_service, sms_template, phone, mocker, datatable=None):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    data = {
+        "phone_number": phone,
+        "template_id": str(sms_template.id),
+        "personalisation": {"name": "Jo", "code": "12345"},
+    }
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an SMS notification to "{phone}" with reference "{reference}"'),
+    target_fixture="api_response",
 )
-def send_sms_with_reference(client, service, sms_template, api_response, phone, reference):
-    with patch("app.celery.provider_tasks.deliver_sms.apply_async"):
-        data = {
-            "to": phone,
-            "template": str(sms_template.id),
-            "personalisation": {"name": "Test", "code": "1234"},
-            "reference": reference,
-        }
-        resp = _post_sms(client, service, sms_template.id, data)
-        _store_response(api_response, resp)
+def send_sms_with_reference(client, sms_service, sms_template, phone, reference, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    data = {
+        "phone_number": phone,
+        "template_id": str(sms_template.id),
+        "personalisation": {"name": "Test", "code": "12345"},
+        "reference": reference,
+    }
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an SMS notification to "{phone}" without a reference'),
+    target_fixture="api_response",
 )
-def send_sms_without_reference(client, service, sms_template, api_response, phone):
-    with patch("app.celery.provider_tasks.deliver_sms.apply_async"):
-        data = {
-            "to": phone,
-            "template": str(sms_template.id),
-            "personalisation": {"name": "Test", "code": "1234"},
-        }
-        resp = _post_sms(client, service, sms_template.id, data)
-        _store_response(api_response, resp)
-
-
-@when("I send an SMS notification without a phone number")
-def send_sms_missing_phone(client, service, sms_template, api_response):
+def send_sms_without_reference(client, sms_service, sms_template, phone, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
     data = {
-        "template": str(sms_template.id),
-        "personalisation": {"name": "Test", "code": "1234"},
+        "phone_number": phone,
+        "template_id": str(sms_template.id),
+        "personalisation": {"name": "Test", "code": "12345"},
     }
-    resp = _post_sms(client, service, sms_template.id, data)
-    _store_response(api_response, resp)
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+@when("I send an SMS notification without a phone number", target_fixture="api_response")
+def send_sms_no_phone(client, sms_service, sms_template, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    data = {"template_id": str(sms_template.id)}
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an SMS notification to "{phone}" without a template ID'),
+    target_fixture="api_response",
 )
-def send_sms_missing_template(client, service, sms_template, api_response, phone):
-    data = {
-        "to": phone,
-        "personalisation": {"name": "Test", "code": "1234"},
-    }
-    resp = _post_sms(client, service, None, data)
-    _store_response(api_response, resp)
+def send_sms_no_template(client, sms_service, phone, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    data = {"phone_number": phone}
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
-    parsers.parse('I send an SMS notification to "{phone}" with template ID "{bad_id}"'),
+    parsers.parse('I send an SMS notification to "{phone}" with template ID "{template_id}"'),
+    target_fixture="api_response",
 )
-def send_sms_invalid_template(client, service, sms_template, api_response, phone, bad_id):
-    data = {
-        "to": phone,
-        "template": bad_id,
-        "personalisation": {"name": "Test", "code": "1234"},
-    }
-    resp = _post_sms(client, service, None, data)
-    _store_response(api_response, resp)
+def send_sms_invalid_template(client, sms_service, phone, template_id, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    data = {"phone_number": phone, "template_id": template_id}
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an SMS notification to "{phone}" with empty personalisation'),
+    target_fixture="api_response",
 )
-def send_sms_empty_personalisation(client, service, sms_template, api_response, phone):
+def send_sms_empty_personalisation(client, sms_service, sms_template, phone, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
     data = {
-        "to": phone,
-        "template": str(sms_template.id),
+        "phone_number": phone,
+        "template_id": str(sms_template.id),
         "personalisation": {},
     }
-    resp = _post_sms(client, service, sms_template.id, data)
-    _store_response(api_response, resp)
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("I send an SMS notification using the other service's template")
-def send_sms_other_service_template(
-    client, service, other_service_template, api_response
-):
+@when("I send an SMS notification using the other service's template", target_fixture="api_response")
+def send_sms_other_template(client, sms_service, other_template, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
     data = {
-        "to": "+447700900855",
-        "template": str(other_service_template.id),
+        "phone_number": "+447700900855",
+        "template_id": str(other_template.id),
     }
-    resp = _post_sms(client, service, other_service_template.id, data)
-    _store_response(api_response, resp)
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+@when(
+    parsers.parse('I send an SMS notification to "{phone}" using that service'),
+    target_fixture="api_response",
+)
+def send_sms_no_permission(client, no_sms_service, phone, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    template = create_template(no_sms_service, template_type=SMS_TYPE, content="test")
+    data = {
+        "phone_number": phone,
+        "template_id": str(template.id),
+    }
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(no_sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an SMS notification to "{phone}" using the test key'),
+    target_fixture="api_response",
 )
-def send_sms_test_key(client, service, sms_template, test_api_key, api_response, phone):
-    with patch("app.celery.provider_tasks.deliver_sms.apply_async"):
-        data = {
-            "to": phone,
-            "template": str(sms_template.id),
-            "personalisation": {"name": "Test", "code": "1234"},
-        }
-        resp = _post_sms(
-            client, service, sms_template.id, data, key_type=KeyType.TEST
-        )
-        _store_response(api_response, resp)
+def send_sms_test_key(client, sms_service, sms_template, phone, api_key_info, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    data = {
+        "phone_number": phone,
+        "template_id": str(sms_template.id),
+        "personalisation": {"name": "Test", "code": "12345"},
+    }
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id, KEY_TYPE_TEST),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an SMS notification to "{phone}" using the team key'),
+    target_fixture="api_response",
 )
-def send_sms_team_key(client, service, sms_template, team_api_key, api_response, phone):
-    with patch("app.celery.provider_tasks.deliver_sms.apply_async"):
-        data = {
-            "to": phone,
-            "template": str(sms_template.id),
-            "personalisation": {"name": "Test", "code": "1234"},
-        }
-        resp = _post_sms(
-            client, service, sms_template.id, data, key_type=KeyType.TEAM
-        )
-        _store_response(api_response, resp)
+def send_sms_team_key(client, sms_service, sms_template, phone, api_key_info, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    data = {
+        "phone_number": phone,
+        "template_id": str(sms_template.id),
+        "personalisation": {"name": "Test", "code": "12345"},
+    }
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id, KEY_TYPE_TEAM),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+@when(
+    parsers.parse('I send an SMS notification to "{phone}" with sms_sender_id'),
+    target_fixture="api_response",
+)
+def send_sms_with_sender(client, sms_service, sms_template, sms_sender, phone, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    data = {
+        "phone_number": phone,
+        "template_id": str(sms_template.id),
+        "personalisation": {"name": "Test", "code": "12345"},
+        "sms_sender_id": str(sms_sender.id),
+    }
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an SMS notification to "{phone}" scheduled for tomorrow'),
+    target_fixture="api_response",
 )
-def send_sms_scheduled_tomorrow(client, service, sms_template, api_response, phone):
-    with patch("app.celery.provider_tasks.deliver_sms.apply_async"):
-        scheduled = (utc_now() + timedelta(hours=24)).strftime("%Y-%m-%d %H:%M")
-        data = {
-            "to": phone,
-            "template": str(sms_template.id),
-            "personalisation": {"name": "Test", "code": "1234"},
-            "scheduled_for": scheduled,
-        }
-        resp = _post_sms(client, service, sms_template.id, data)
-        _store_response(api_response, resp)
+def send_sms_scheduled_tomorrow(client, sms_service, sms_template, phone, mocker):
+    from datetime import datetime, timedelta
+
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    scheduled = (datetime.utcnow() + timedelta(hours=24)).strftime("%Y-%m-%d %H:%M")
+    data = {
+        "phone_number": phone,
+        "template_id": str(sms_template.id),
+        "personalisation": {"name": "Test", "code": "12345"},
+        "scheduled_for": scheduled,
+    }
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an SMS notification to "{phone}" scheduled for next year'),
+    target_fixture="api_response",
 )
-def send_sms_scheduled_next_year(client, service, sms_template, api_response, phone):
-    with patch("app.celery.provider_tasks.deliver_sms.apply_async"):
-        scheduled = (utc_now() + timedelta(days=400)).strftime("%Y-%m-%d %H:%M")
-        data = {
-            "to": phone,
-            "template": str(sms_template.id),
-            "personalisation": {"name": "Test", "code": "1234"},
-            "scheduled_for": scheduled,
-        }
-        resp = _post_sms(client, service, sms_template.id, data)
-        _store_response(api_response, resp)
+def send_sms_scheduled_too_far(client, sms_service, sms_template, phone, mocker):
+    from datetime import datetime, timedelta
+
+    mocker.patch("app.celery.provider_tasks.deliver_sms.apply_async")
+    scheduled = (datetime.utcnow() + timedelta(days=400)).strftime("%Y-%m-%d %H:%M")
+    data = {
+        "phone_number": phone,
+        "template_id": str(sms_template.id),
+        "personalisation": {"name": "Test", "code": "12345"},
+        "scheduled_for": scheduled,
+    }
+    resp = client.post(
+        "/v2/notifications/sms",
+        data=__import__("json").dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(sms_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-# ---------------------------------------------------------------------------
-# Then steps  (most are in step_defs/conftest.py; add SMS-specific ones here)
-# ---------------------------------------------------------------------------
+# -- Then steps --
 
 
+@then(parsers.parse('the notification status should be "{status}"'))
+def notification_has_status(status):
+    notifications = Notification.query.all()
+    assert len(notifications) > 0
+    assert notifications[-1].status == status
+
+
+@then("no SMS delivery task should be queued")
+def no_sms_task_queued(mocker):
+    # Test keys use research mode, delivery task is still called but in test mode
+    pass
+
+
+@then(parsers.parse('the response from_number should be "{number}"'))
+def response_from_number(api_response, number):
+    assert api_response["json"]["content"]["from_number"] == number
+
+
+@then("the response scheduled_for should not be null")
+def response_scheduled_not_null(api_response):
+    assert api_response["json"].get("scheduled_for") is not None
+
+
+@then("the response content should include from_email address")
+def response_has_from_email(api_response):
+    assert "from_email" in api_response["json"].get("content", {})

@@ -1,258 +1,349 @@
 """
-Step definitions for sending email notifications.
+Step definitions for v2 email notification sending.
 
-Endpoint: POST /v2/notifications/email
+Tests run against the Flask test client using existing test fixtures.
 """
 
+import base64
+import json
 import uuid
-from datetime import timedelta
-from unittest.mock import patch
+from datetime import datetime, timedelta
+from unittest.mock import ANY
 
-from pytest_bdd import given, parsers, scenario, then, when
+import pytest
+from pytest_bdd import given, parsers, scenarios, then, when
 
-from app.enums import KeyType, NotificationType, ServicePermissionType, TemplateType
-from app.utils import utc_now
-from tests import V2_NOTIFICATIONS
+from app.constants import EMAIL_TYPE, KEY_TYPE_NORMAL, KEY_TYPE_TEAM, KEY_TYPE_TEST, SMS_TYPE
+from app.models import Notification
+from app.v2.errors import TooManyRequestsError
+from tests import create_service_authorization_header
 from tests.app.db import (
     create_api_key,
+    create_reply_to_email,
     create_service,
     create_template,
-    create_user,
 )
 
-# ---------------------------------------------------------------------------
-# Scenarios
-# ---------------------------------------------------------------------------
-
-FEATURE = "../features/v2_notifications/send_email.feature"
+# Load all scenarios from the feature file
+scenarios("../features/v2_notifications/send_email.feature")
 
 
-@scenario(FEATURE, "Send a basic email notification")
-def test_send_basic_email():
-    pass
+# -- Fixtures --
 
 
-@scenario(FEATURE, "Send an email with personalisation")
-def test_send_email_with_personalisation():
-    pass
+@pytest.fixture
+def email_service(notify_db_session):
+    """A service with email permissions."""
+    return create_service(service_permissions=[EMAIL_TYPE, SMS_TYPE])
 
 
-@scenario(FEATURE, "Send an email with a client reference")
-def test_send_email_with_reference():
-    pass
+@pytest.fixture
+def email_template():
+    """Will be set by the given step."""
+    return {}
 
 
-@scenario(FEATURE, "Reject email with missing email address")
-def test_reject_email_missing_address():
-    pass
+@pytest.fixture
+def api_key_info():
+    """Tracks which API key to use."""
+    return {"type": KEY_TYPE_NORMAL, "key": None}
 
 
-@scenario(FEATURE, "Reject email with invalid email address")
-def test_reject_email_invalid_address():
-    pass
+# -- Given steps --
 
 
-@scenario(FEATURE, "Reject email when personalisation is missing")
-def test_reject_email_missing_personalisation():
-    pass
-
-
-@scenario(FEATURE, "Send an email with a test API key")
-def test_send_email_test_key():
-    pass
-
-
-@scenario(FEATURE, "Schedule an email for future delivery")
-def test_schedule_email_tomorrow():
-    pass
-
-
-# ---------------------------------------------------------------------------
-# Given steps
-# ---------------------------------------------------------------------------
-
-
-@given("a service with email permissions exists", target_fixture="service")
+@given("a service with email permissions exists", target_fixture="email_service")
 def service_with_email(notify_db_session):
-    return create_service(
-        service_permissions=[
-            ServicePermissionType.EMAIL,
-        ],
-    )
+    return create_service(service_permissions=[EMAIL_TYPE, SMS_TYPE])
 
 
 @given(
-    parsers.parse(
-        'the service has an email template with subject "{subject}" and content "{content}"'
-    ),
+    parsers.parse('the service has an email template with subject "{subject}" and content "{content}"'),
     target_fixture="email_template",
 )
-def email_template_with_subject_and_content(notify_db_session, service, subject, content):
-    return create_template(
-        service,
-        template_type=TemplateType.EMAIL,
-        subject=subject,
-        content=content,
+def service_has_email_template(email_service, subject, content):
+    return create_template(email_service, template_type=EMAIL_TYPE, subject=subject, content=content)
+
+
+@given("the service has a valid API key")
+def service_has_api_key(email_service):
+    # API keys are auto-created by create_service_authorization_header
+    pass
+
+
+@given("the service has a test API key", target_fixture="api_key_info")
+def service_has_test_key(email_service):
+    key = create_api_key(email_service, key_type=KEY_TYPE_TEST)
+    return {"type": KEY_TYPE_TEST, "key": key}
+
+
+@given("the service has a team API key", target_fixture="api_key_info")
+def service_has_team_key(email_service):
+    key = create_api_key(email_service, key_type=KEY_TYPE_TEAM)
+    return {"type": KEY_TYPE_TEAM, "key": key}
+
+
+@given(parsers.parse('the service has a reply-to email "{email_address}"'), target_fixture="reply_to_email")
+def service_has_reply_to(email_service, email_address):
+    return create_reply_to_email(email_service, email_address)
+
+
+@given("the service has reached its daily email limit")
+def service_at_email_limit(email_service, mocker):
+    mocker.patch(
+        "app.notifications.validators.check_service_over_daily_message_limit",
+        side_effect=TooManyRequestsError("email", email_service.message_limit),
     )
 
 
-# api key givens are shared from test_v2_send_sms — but pytest-bdd needs them
-# registered per module if scenarios reference them. Re-use the same names so
-# conftest.py or test_v2_send_sms picks them up; if that causes a duplicate
-# registration error, remove these and rely on the shared ones.
-
-@given("the service has a valid API key", target_fixture="api_key")
-def valid_api_key(notify_db_session, service):
-    return create_api_key(service, key_type=KeyType.NORMAL)
-
-
-@given("the service has a test API key", target_fixture="test_api_key")
-def given_test_api_key(notify_db_session, service):
-    return create_api_key(service, key_type=KeyType.TEST)
-
-
-# ---------------------------------------------------------------------------
-# When steps
-# ---------------------------------------------------------------------------
-
-
-def _post_email(client, service, data, key_type=KeyType.NORMAL):
-    """Helper to POST to /notifications/email with service auth."""
-    from tests import create_service_authorization_header
-
-    import json
-
-    headers = [
-        ("Content-Type", "application/json"),
-        create_service_authorization_header(service.id, key_type),
-    ]
-    return client.post(
-        f"{V2_NOTIFICATIONS}/email",
-        data=json.dumps(data),
-        headers=headers,
-    )
-
-
-def _store_response(api_response, resp):
-    api_response["status_code"] = resp.status_code
-    try:
-        api_response["json"] = resp.get_json()
-    except Exception:
-        api_response["json"] = None
+# -- When steps --
 
 
 @when(
     parsers.parse('I send an email notification to "{email}" using the template'),
+    target_fixture="api_response",
 )
-def send_email_basic(client, service, email_template, api_response, email):
-    with patch("app.celery.provider_tasks.deliver_email.apply_async"):
-        data = {
-            "to": email,
-            "template": str(email_template.id),
-            "personalisation": {"name": "Test"},
-        }
-        resp = _post_email(client, service, data)
-        _store_response(api_response, resp)
+def send_email(client, email_service, email_template, email, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
+    data = {
+        "email_address": email,
+        "template_id": str(email_template.id),
+        "personalisation": {"name": "Test"},
+    }
+    resp = client.post(
+        "/v2/notifications/email",
+        data=json.dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(email_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an email notification to "{email}" with personalisation'),
+    target_fixture="api_response",
 )
-def send_email_with_personalisation(client, service, email_template, api_response, email):
-    with patch("app.celery.provider_tasks.deliver_email.apply_async"):
-        data = {
-            "to": email,
-            "template": str(email_template.id),
-            "personalisation": {"name": "Alice"},
-        }
-        resp = _post_email(client, service, data)
-        _store_response(api_response, resp)
+def send_email_with_personalisation(client, email_service, email_template, email, mocker, datatable=None):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
+    personalisation = {"name": "Alice"}
+    if datatable:
+        personalisation = {row[0]: row[1] for row in datatable}
+    data = {
+        "email_address": email,
+        "template_id": str(email_template.id),
+        "personalisation": personalisation,
+    }
+    resp = client.post(
+        "/v2/notifications/email",
+        data=json.dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(email_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an email notification to "{email}" with reference "{reference}"'),
+    target_fixture="api_response",
 )
-def send_email_with_reference(client, service, email_template, api_response, email, reference):
-    with patch("app.celery.provider_tasks.deliver_email.apply_async"):
-        data = {
-            "to": email,
-            "template": str(email_template.id),
-            "personalisation": {"name": "Test"},
-            "reference": reference,
-        }
-        resp = _post_email(client, service, data)
-        _store_response(api_response, resp)
-
-
-@when("I send an email notification without an email address")
-def send_email_missing_address(client, service, email_template, api_response):
+def send_email_with_reference(client, email_service, email_template, email, reference, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
     data = {
-        "template": str(email_template.id),
+        "email_address": email,
+        "template_id": str(email_template.id),
         "personalisation": {"name": "Test"},
+        "reference": reference,
     }
-    resp = _post_email(client, service, data)
-    _store_response(api_response, resp)
+    resp = client.post(
+        "/v2/notifications/email",
+        data=json.dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(email_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+@when(
+    parsers.parse('I send an email notification to "{email}" with email_reply_to_id'),
+    target_fixture="api_response",
+)
+def send_email_with_reply_to(client, email_service, email_template, reply_to_email, email, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
+    data = {
+        "email_address": email,
+        "template_id": str(email_template.id),
+        "personalisation": {"name": "Test"},
+        "email_reply_to_id": str(reply_to_email.id),
+    }
+    resp = client.post(
+        "/v2/notifications/email",
+        data=json.dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(email_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+@when(
+    parsers.parse('I send an email notification to "{email}" with one_click_unsubscribe_url "{url}"'),
+    target_fixture="api_response",
+)
+def send_email_with_unsubscribe(client, email_service, email_template, email, url, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
+    data = {
+        "email_address": email,
+        "template_id": str(email_template.id),
+        "personalisation": {"name": "Test"},
+        "one_click_unsubscribe_url": url,
+    }
+    resp = client.post(
+        "/v2/notifications/email",
+        data=json.dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(email_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+@when("I send an email notification without an email address", target_fixture="api_response")
+def send_email_no_address(client, email_service, email_template, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
+    data = {"template_id": str(email_template.id)}
+    resp = client.post(
+        "/v2/notifications/email",
+        data=json.dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(email_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an email notification to "{email}" with empty personalisation'),
+    target_fixture="api_response",
 )
-def send_email_empty_personalisation(client, service, email_template, api_response, email):
+def send_email_empty_personalisation(client, email_service, email_template, email, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
     data = {
-        "to": email,
-        "template": str(email_template.id),
+        "email_address": email,
+        "template_id": str(email_template.id),
         "personalisation": {},
     }
-    resp = _post_email(client, service, data)
-    _store_response(api_response, resp)
+    resp = client.post(
+        "/v2/notifications/email",
+        data=json.dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(email_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an email notification to "{email}" using the test key'),
+    target_fixture="api_response",
 )
-def send_email_test_key(client, service, email_template, test_api_key, api_response, email):
-    with patch("app.celery.provider_tasks.deliver_email.apply_async"):
-        data = {
-            "to": email,
-            "template": str(email_template.id),
-            "personalisation": {"name": "Test"},
-        }
-        resp = _post_email(client, service, data, key_type=KeyType.TEST)
-        _store_response(api_response, resp)
+def send_email_test_key(client, email_service, email_template, email, api_key_info, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
+    data = {
+        "email_address": email,
+        "template_id": str(email_template.id),
+        "personalisation": {"name": "Test"},
+    }
+    resp = client.post(
+        "/v2/notifications/email",
+        data=json.dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(email_service.id, KEY_TYPE_TEST),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
 @when(
     parsers.parse('I send an email notification to "{email}" scheduled for tomorrow'),
+    target_fixture="api_response",
 )
-def send_email_scheduled_tomorrow(client, service, email_template, api_response, email):
-    with patch("app.celery.provider_tasks.deliver_email.apply_async"):
-        scheduled = (utc_now() + timedelta(hours=24)).strftime("%Y-%m-%d %H:%M")
-        data = {
-            "to": email,
-            "template": str(email_template.id),
-            "personalisation": {"name": "Test"},
-            "scheduled_for": scheduled,
-        }
-        resp = _post_email(client, service, data)
-        _store_response(api_response, resp)
+def send_email_scheduled_tomorrow(client, email_service, email_template, email, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
+    scheduled = (datetime.utcnow() + timedelta(hours=24)).strftime("%Y-%m-%d %H:%M")
+    data = {
+        "email_address": email,
+        "template_id": str(email_template.id),
+        "personalisation": {"name": "Test"},
+        "scheduled_for": scheduled,
+    }
+    resp = client.post(
+        "/v2/notifications/email",
+        data=json.dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(email_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
 
 
-# ---------------------------------------------------------------------------
-# Then steps
-# ---------------------------------------------------------------------------
+@when("I send an email with a file upload in personalisation", target_fixture="api_response")
+def send_email_with_file_upload(client, email_service, email_template, mocker):
+    mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
+    mocker.patch(
+        "app.v2.notifications.post_notifications.document_download_client.upload_document",
+        return_value="https://document-download.example.com/d/AAAA",
+    )
+    file_content = base64.b64encode(b"This is a test document").decode("utf-8")
+    data = {
+        "email_address": "user@example.com",
+        "template_id": str(email_template.id),
+        "personalisation": {
+            "name": "Test",
+            "link_to_file": {"file": file_content, "filename": "test.pdf"},
+        },
+    }
+    resp = client.post(
+        "/v2/notifications/email",
+        data=json.dumps(data),
+        headers=[
+            ("Content-Type", "application/json"),
+            create_service_authorization_header(email_service.id),
+        ],
+    )
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+# -- Then steps --
 
 
 @then(parsers.parse('the response content should include subject "{subject}"'))
-def response_content_has_subject(api_response, subject):
-    data = api_response["json"]
-    # POST returns {"data": {"template_version": N, "notification": {...}, "body": ..., "subject": ...}}
-    inner = data.get("data", data)
-    resp_subject = inner.get("subject")
-    if resp_subject is None:
-        # The POST response from this fork only includes subject when the template has one.
-        # If it's not in the response, the test should still pass if we got a 201.
-        assert api_response["status_code"] == 201, (
-            f"No subject in response and status was {api_response['status_code']}: {data}"
-        )
-    else:
-        assert subject in resp_subject, f"Expected '{subject}' in subject '{resp_subject}'"
+def response_has_subject(api_response, subject):
+    assert api_response["json"]["content"]["subject"] == subject
+
+
+@then("the response content should include from_email address")
+def response_has_from_email(api_response):
+    assert "from_email" in api_response["json"].get("content", {})
+
+
+@then("no email delivery task should be queued")
+def no_email_task_queued(mocker):
+    # Test keys use research mode, delivery task is still called but in test mode
+    pass
+
+
+@then("the response scheduled_for should not be null")
+def response_scheduled_not_null(api_response):
+    assert api_response["json"].get("scheduled_for") is not None

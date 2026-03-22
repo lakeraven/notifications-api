@@ -1,29 +1,34 @@
-Feature: Provider details
+Feature: Notification provider management
   As a platform admin
   I want to manage notification providers
-  So that I can control how messages are sent
+  So that I can control SMS and email delivery
 
-  Background:
-    Given a platform admin user exists
-
-  Scenario: Get all providers
-    When all providers are retrieved
+  Scenario: List all providers
+    When I list all providers
     Then the response status code should be 200
-    And the response should contain a list of providers
+    And the response should include SMS and email providers
+    And each provider should have a priority and active status
 
   Scenario: Get a provider by ID
-    When a provider is retrieved by ID
+    Given a provider exists
+    When I get the provider by ID
     Then the response status code should be 200
-    And the response should contain the provider details
+    And the response should include the provider identifier
 
   Scenario: Get provider version history
-    When the provider version history is retrieved
+    Given a provider has been updated
+    When I get the provider version history
     Then the response status code should be 200
+    And the response should include version entries
 
-  Scenario: Update a provider priority
-    When a provider priority is updated
+  Scenario: Update provider priority
+    Given an SMS provider exists
+    When I update the provider priority to 50
     Then the response status code should be 200
+    And the provider priority should be 50
 
-  Scenario: Update a provider active status
-    When a provider is set to inactive
+  Scenario: Deactivate a provider
+    Given an SMS provider exists
+    When I set the provider to inactive
     Then the response status code should be 200
+    And the provider should be inactive
