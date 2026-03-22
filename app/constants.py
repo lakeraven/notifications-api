@@ -120,6 +120,7 @@ VERIFY_CODE_TYPES = [EMAIL_TYPE, SMS_TYPE]
 class ServiceCallbackTypes(enum.StrEnum):
     delivery_status = CallbackType.DELIVERY_STATUS
     complaint = CallbackType.COMPLAINT
+    inbound_sms = "inbound_sms"
 
 
 # -- Branding --

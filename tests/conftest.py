@@ -95,23 +95,37 @@ def notify_db_session(_notify_db, sms_providers):
 
     _notify_db.session.remove()
     with _notify_db.engine.begin() as connection:
-        for tbl in reversed(_notify_db.metadata.sorted_tables):
-            if tbl.name not in [
-                "provider_details",
-                "key_types",
-                "branding_type",
-                "job_status",
-                "provider_details_history",
-                "template_process_type",
-                "notifications_all_time_view",
-                "notification_status_types",
-                "organization_types",
-                "service_permission_types",
-                "auth_type",
-                "invite_status_type",
-                "service_callback_type",
-            ]:
-                connection.execute(tbl.delete())
+        from sqlalchemy import text
+
+        # Preserve static/seed tables; TRUNCATE everything else with CASCADE
+        # so FK ordering doesn't matter.
+        preserve = {
+            "provider_details",
+            "key_types",
+            "branding_type",
+            "job_status",
+            "provider_details_history",
+            "template_process_type",
+            "notifications_all_time_view",
+            "notification_status_types",
+            "organization_types",
+            "service_permission_types",
+            "auth_type",
+            "invite_status_type",
+            "service_callback_type",
+        }
+        tables_to_clear = [
+            tbl.name
+            for tbl in _notify_db.metadata.sorted_tables
+            if tbl.name not in preserve
+        ]
+        if tables_to_clear:
+            # NULL out FK references from preserved tables before truncating
+            connection.execute(text("UPDATE provider_details SET created_by_id = NULL"))
+            connection.execute(text("UPDATE provider_details_history SET created_by_id = NULL"))
+            connection.execute(
+                text(f"TRUNCATE {', '.join(tables_to_clear)} CASCADE")
+            )
     _notify_db.session.commit()
 
 
