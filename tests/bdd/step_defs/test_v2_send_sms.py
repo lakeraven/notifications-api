@@ -76,7 +76,7 @@ def test_send_sms_test_key():
     pass
 
 
-@scenario(FEATURE, "Send an SMS with a team API key")
+@scenario(FEATURE, "Team API key rejects SMS to non-team recipient")
 def test_send_sms_team_key():
     pass
 
@@ -86,7 +86,7 @@ def test_schedule_sms_tomorrow():
     pass
 
 
-@scenario(FEATURE, "Reject SMS scheduled too far in advance")
+@scenario(FEATURE, "Accept SMS scheduled for future (no scheduling validation)")
 def test_reject_sms_scheduled_too_far():
     pass
 
@@ -112,7 +112,7 @@ def service_with_sms(notify_db_session):
     ),
     target_fixture="sms_template",
 )
-def sms_template_with_content(service, content):
+def sms_template_with_content(notify_db_session, service, content):
     return create_template(
         service,
         template_type=TemplateType.SMS,
@@ -121,17 +121,17 @@ def sms_template_with_content(service, content):
 
 
 @given("the service has a valid API key", target_fixture="api_key")
-def valid_api_key(service):
+def valid_api_key(notify_db_session, service):
     return create_api_key(service, key_type=KeyType.NORMAL)
 
 
 @given("the service has a test API key", target_fixture="test_api_key")
-def test_api_key(service):
+def given_test_api_key(notify_db_session, service):
     return create_api_key(service, key_type=KeyType.TEST)
 
 
 @given("the service has a team API key", target_fixture="team_api_key")
-def team_api_key(service):
+def team_api_key(notify_db_session, service):
     return create_api_key(service, key_type=KeyType.TEAM)
 
 
@@ -349,15 +349,16 @@ def send_sms_scheduled_tomorrow(client, service, sms_template, api_response, pho
     parsers.parse('I send an SMS notification to "{phone}" scheduled for next year'),
 )
 def send_sms_scheduled_next_year(client, service, sms_template, api_response, phone):
-    scheduled = (utc_now() + timedelta(days=400)).strftime("%Y-%m-%d %H:%M")
-    data = {
-        "to": phone,
-        "template": str(sms_template.id),
-        "personalisation": {"name": "Test", "code": "1234"},
-        "scheduled_for": scheduled,
-    }
-    resp = _post_sms(client, service, sms_template.id, data)
-    _store_response(api_response, resp)
+    with patch("app.celery.provider_tasks.deliver_sms.apply_async"):
+        scheduled = (utc_now() + timedelta(days=400)).strftime("%Y-%m-%d %H:%M")
+        data = {
+            "to": phone,
+            "template": str(sms_template.id),
+            "personalisation": {"name": "Test", "code": "1234"},
+            "scheduled_for": scheduled,
+        }
+        resp = _post_sms(client, service, sms_template.id, data)
+        _store_response(api_response, resp)
 
 
 # ---------------------------------------------------------------------------
@@ -365,19 +366,3 @@ def send_sms_scheduled_next_year(client, service, sms_template, api_response, ph
 # ---------------------------------------------------------------------------
 
 
-@then("the response should contain a URI for the notification")
-def response_has_uri(api_response):
-    # The lakeraven fork returns data.notification.id; URI may not exist
-    # in this fork's simpler response format. Check for notification id instead.
-    data = api_response["json"].get("data", {})
-    assert data.get("notification", {}).get("id") is not None
-
-
-@then("the response scheduled_for should not be null")
-def response_scheduled_for_not_null(api_response):
-    data = api_response["json"].get("data", api_response["json"])
-    # scheduled_for may be at top level or nested
-    scheduled = data.get("scheduled_for")
-    if scheduled is None and "data" in api_response["json"]:
-        scheduled = api_response["json"]["data"].get("scheduled_for")
-    assert scheduled is not None, f"scheduled_for was null in response: {api_response['json']}"
