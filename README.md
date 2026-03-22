@@ -496,6 +496,7 @@ instructions above for more details.
 - [`git` hooks](./docs/all.md#git-hooks)
   - [detect-secrets pre-commit plugin](./docs/all.md#detect-secrets-pre-commit-plugin)
 - [Testing](./docs/all.md#testing)
+  - [BDD / pytest-bdd](./tests/bdd/README.md) (Python: `tests/bdd/`)
   - [CI testing](./docs/all.md#ci-testing)
   - [Manual testing](./docs/all.md#manual-testing)
   - [To run a local OWASP scan](./docs/all.md#to-run-a-local-owasp-scan)
