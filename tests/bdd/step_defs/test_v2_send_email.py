@@ -1,7 +1,7 @@
 """
 Step definitions for sending email notifications.
 
-Endpoint: POST /notifications/email
+Endpoint: POST /v2/notifications/email
 """
 
 import uuid
@@ -12,6 +12,7 @@ from pytest_bdd import given, parsers, scenario, then, when
 
 from app.enums import KeyType, NotificationType, ServicePermissionType, TemplateType
 from app.utils import utc_now
+from tests import V2_NOTIFICATIONS
 from tests.app.db import (
     create_api_key,
     create_service,
@@ -126,7 +127,7 @@ def _post_email(client, service, data, key_type=KeyType.NORMAL):
         create_service_authorization_header(service.id, key_type),
     ]
     return client.post(
-        "/notifications/email",
+        f"{V2_NOTIFICATIONS}/email",
         data=json.dumps(data),
         headers=headers,
     )

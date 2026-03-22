@@ -1,7 +1,7 @@
 """
 Step definitions for sending SMS notifications.
 
-Endpoint: POST /notifications/sms
+Endpoint: POST /v2/notifications/sms
 """
 
 import uuid
@@ -12,6 +12,7 @@ from pytest_bdd import given, parsers, scenario, then, when
 
 from app.enums import KeyType, NotificationType, ServicePermissionType, TemplateType
 from app.utils import utc_now
+from tests import V2_NOTIFICATIONS
 from tests.app.db import (
     create_api_key,
     create_service,
@@ -165,7 +166,7 @@ def _post_sms(client, service, template_id, data, key_type=KeyType.NORMAL):
     import json
 
     return client.post(
-        "/notifications/sms",
+        f"{V2_NOTIFICATIONS}/sms",
         data=json.dumps(data),
         headers=headers,
     )

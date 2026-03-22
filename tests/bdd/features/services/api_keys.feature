@@ -40,4 +40,4 @@ Feature: API keys
     Given the service has a "normal" API key
     And the API key is revoked
     When the revoked API key is used to access the service
-    Then the response status code should be 404
+    Then the response status code should be 403

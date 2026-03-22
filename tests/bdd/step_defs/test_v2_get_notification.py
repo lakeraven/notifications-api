@@ -2,8 +2,8 @@
 Step definitions for getting / listing notifications.
 
 Endpoints:
-  GET /notifications/<uuid>   — single notification
-  GET /notifications           — list notifications
+  GET /v2/notifications/<uuid>   — single notification
+  GET /v2/notifications           — list notifications
 """
 
 import uuid
@@ -17,6 +17,7 @@ from app.enums import (
     ServicePermissionType,
     TemplateType,
 )
+from tests import V2_NOTIFICATIONS
 from tests.app.db import (
     create_api_key,
     create_notification,
@@ -246,49 +247,49 @@ def request_notification_by_id(client, service, api_response, sms_notification, 
     # Use the most recently created notification fixture available.
     # email_notification overrides sms_notification when present.
     notification = request.getfixturevalue("email_notification") if "email_notification" in request.fixturenames else sms_notification
-    resp = _get(client, service, f"/notifications/{notification.id}")
+    resp = _get(client, service, f"{V2_NOTIFICATIONS}/{notification.id}")
     _store_response(api_response, resp)
 
 
 @when("I request that notification by ID")
 def request_other_notification(client, service, other_notification, api_response):
-    resp = _get(client, service, f"/notifications/{other_notification.id}")
+    resp = _get(client, service, f"{V2_NOTIFICATIONS}/{other_notification.id}")
     _store_response(api_response, resp)
 
 
 @when(parsers.parse('I request a notification with ID "{bad_id}"'))
 def request_notification_invalid_id(client, service, api_response, bad_id):
-    resp = _get(client, service, f"/notifications/{bad_id}")
+    resp = _get(client, service, f"{V2_NOTIFICATIONS}/{bad_id}")
     _store_response(api_response, resp)
 
 
 @when("I request a notification with a random UUID")
 def request_notification_random_uuid(client, service, api_response):
-    resp = _get(client, service, f"/notifications/{uuid.uuid4()}")
+    resp = _get(client, service, f"{V2_NOTIFICATIONS}/{uuid.uuid4()}")
     _store_response(api_response, resp)
 
 
 @when("I list all notifications")
 def list_all_notifications(client, service, api_response):
-    resp = _get(client, service, "/notifications")
+    resp = _get(client, service, V2_NOTIFICATIONS)
     _store_response(api_response, resp)
 
 
 @when(parsers.parse('I list notifications with template_type "{template_type}"'))
 def list_notifications_by_type(client, service, api_response, template_type):
-    resp = _get(client, service, f"/notifications?template_type={template_type}")
+    resp = _get(client, service, f"{V2_NOTIFICATIONS}?template_type={template_type}")
     _store_response(api_response, resp)
 
 
 @when(parsers.parse('I list notifications with status "{status}"'))
 def list_notifications_by_status(client, service, api_response, status):
-    resp = _get(client, service, f"/notifications?status={status}")
+    resp = _get(client, service, f"{V2_NOTIFICATIONS}?status={status}")
     _store_response(api_response, resp)
 
 
 @when(parsers.parse('I list notifications with reference "{reference}"'))
 def list_notifications_by_reference(client, service, api_response, reference):
-    resp = _get(client, service, f"/notifications?reference={reference}")
+    resp = _get(client, service, f"{V2_NOTIFICATIONS}?reference={reference}")
     _store_response(api_response, resp)
 
 

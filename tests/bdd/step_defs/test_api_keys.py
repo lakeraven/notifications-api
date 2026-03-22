@@ -5,6 +5,7 @@ import uuid
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from app.enums import KeyType
+from tests import V2_NOTIFICATIONS
 from tests.app.db import create_api_key
 
 scenarios("../features/services/api_keys.feature")
@@ -71,7 +72,7 @@ def revoke_api_key(admin_client, service, api_key, api_response):
 @when("the revoked API key is used to access the service", target_fixture="api_response")
 def use_revoked_key(service_api_client, service, api_key, api_response):
     service_api_client.set_service(str(service.id))
-    resp = service_api_client.get(f"/v2/notifications", key_type="normal")
+    resp = service_api_client.get(V2_NOTIFICATIONS, key_type="normal")
     api_response["status_code"] = resp.status_code
     api_response["json"] = resp.get_json() if resp.data else None
     return api_response
