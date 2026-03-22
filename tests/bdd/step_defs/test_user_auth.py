@@ -1,7 +1,6 @@
 """Step definitions for user authentication features."""
 
-import json
-import uuid
+from unittest.mock import patch, MagicMock
 
 from pytest_bdd import given, scenarios, then, when
 
@@ -12,9 +11,13 @@ scenarios("../features/users/user_auth.feature")
 
 
 @given("an SMS verification code has been sent", target_fixture="sms_code")
-def sms_code_sent(admin_client, user):
-    admin_client.post(f"/user/{user.id}/sms-code")
-    return "12345"
+def sms_code_sent(user, notify_db_session):
+    from app.dao.users_dao import create_user_code
+    from app.enums import CodeType
+
+    code = "123456"
+    create_user_code(user, code, CodeType.SMS)
+    return code
 
 
 # -- When steps --
@@ -40,7 +43,8 @@ def verify_wrong_password(admin_client, user, api_response):
 
 @when("an SMS verification code is requested", target_fixture="api_response")
 def request_sms_code(admin_client, user, api_response):
-    resp = admin_client.post(f"/user/{user.id}/sms-code")
+    with patch("app.user.rest.create_2fa_code"):
+        resp = admin_client.post(f"/user/{user.id}/sms-code", data={})
     api_response["status_code"] = resp.status_code
     api_response["json"] = resp.get_json() if resp.data else None
     return api_response
@@ -48,7 +52,8 @@ def request_sms_code(admin_client, user, api_response):
 
 @when("an email verification code is requested", target_fixture="api_response")
 def request_email_code(admin_client, user, api_response):
-    resp = admin_client.post(f"/user/{user.id}/email-code")
+    with patch("app.user.rest.create_2fa_code"):
+        resp = admin_client.post(f"/user/{user.id}/email-code", data={})
     api_response["status_code"] = resp.status_code
     api_response["json"] = resp.get_json() if resp.data else None
     return api_response
@@ -97,7 +102,12 @@ def get_nonexistent_user_by_email(admin_client, api_response):
 
 
 @when("the user is activated", target_fixture="api_response")
-def activate_user(admin_client, user, api_response):
+def activate_user(admin_client, user, notify_db_session, api_response):
+    # Set user to pending first so activate doesn't fail with "User already active"
+    from app.dao.users_dao import save_user_attribute
+    from app.enums import UserState
+
+    save_user_attribute(user, update_dict={"state": UserState.PENDING})
     resp = admin_client.post(f"/user/{user.id}/activate")
     api_response["status_code"] = resp.status_code
     api_response["json"] = resp.get_json() if resp.data else None
@@ -114,8 +124,23 @@ def deactivate_user(admin_client, user, api_response):
 
 @when("an email verification is sent", target_fixture="api_response")
 def send_email_verification(admin_client, user, api_response):
-    data = {"to": user.email_address}
-    resp = admin_client.post(f"/user/{user.id}/email-verification", data=data)
+    import uuid as _uuid
+    from app.enums import TemplateType
+
+    mock_template = MagicMock(
+        id=_uuid.uuid4(),
+        version=1,
+        template_type=TemplateType.EMAIL,
+        service=MagicMock(get_default_reply_to_email_address=MagicMock(return_value=None)),
+    )
+    mock_notification = MagicMock(id=_uuid.uuid4(), personalisation={})
+    with patch("app.user.rest.dao_get_template_by_id", return_value=mock_template), \
+         patch("app.user.rest.db.session.get", return_value=mock_template.service), \
+         patch("app.user.rest.persist_notification", return_value=mock_notification), \
+         patch("app.user.rest.redis_store"), \
+         patch("app.user.rest.send_notification_to_queue"):
+        data = {"to": user.email_address}
+        resp = admin_client.post(f"/user/{user.id}/email-verification", data=data)
     api_response["status_code"] = resp.status_code
     api_response["json"] = resp.get_json() if resp.data else None
     return api_response
