@@ -50,7 +50,7 @@ Q: How did we set ourselves for success? What factors contributed to it? 
 
 -   We narrowed in on common use cases in the benefits space and had good story telling for potential customers about HOW texting could have an impact on program ops. 
 
-    -   We stayed flexible and open to a wide range of use-cases, so we could follow demand  
+    -   We stayed flexible and open to a wide range of use-cases, so we could follow demand
 
 -   We got program teams excited enough to advocate this tech opportunity to other stakeholders
 
