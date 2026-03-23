@@ -61,47 +61,6 @@ def _skip(reason, *test_ids):
         _SKIP_TESTS[tid] = reason
 
 
-# -- v2 send SMS: our API uses 'to'/'template' not 'phone_number'/'template_id' --
-_skip(
-    "GOV.UK v2 send SMS uses phone_number/template_id fields; our API uses to/template",
-    "test_v2_send_sms.py::test_send_a_basic_sms_notification",
-    "test_v2_send_sms.py::test_send_an_sms_with_personalisation",
-    "test_v2_send_sms.py::test_send_an_sms_with_a_client_reference",
-    "test_v2_send_sms.py::test_send_an_sms_with_no_reference_returns_null_reference",
-    "test_v2_send_sms.py::test_send_an_sms_using_an_inbound_number_as_sender",
-    "test_v2_send_sms.py::test_send_an_sms_using_a_specific_sms_sender",
-    "test_v2_send_sms.py::test_send_an_sms_with_a_test_api_key",
-    "test_v2_send_sms.py::test_send_an_sms_with_a_team_api_key_to_a_nonteam_member",
-    "test_v2_send_sms.py::test_reject_sms_with_missing_phone_number",
-    "test_v2_send_sms.py::test_reject_sms_with_missing_template_id",
-    "test_v2_send_sms.py::test_reject_sms_with_invalid_template_id",
-    "test_v2_send_sms.py::test_reject_sms_when_template_belongs_to_another_service",
-    "test_v2_send_sms.py::test_reject_sms_when_personalisation_is_missing_required_fields",
-    "test_v2_send_sms.py::test_reject_sms_when_service_has_no_sms_permission",
-    "test_v2_send_sms.py::test_reject_sms_to_an_international_number_when_not_enabled",
-    "test_v2_send_sms.py::test_send_an_sms_to_an_international_number_when_enabled",
-    "test_v2_send_sms.py::test_schedule_an_sms_for_future_delivery",
-    "test_v2_send_sms.py::test_reject_sms_scheduled_too_far_in_advance",
-    "test_v2_send_sms.py::test_rate_limit_sms_sending",
-)
-
-# -- v2 send email: our API uses 'to'/'template' not 'email_address'/'template_id' --
-_skip(
-    "GOV.UK v2 send email uses email_address/template_id fields; our API uses to/template",
-    "test_v2_send_email.py::test_send_a_basic_email_notification",
-    "test_v2_send_email.py::test_send_an_email_with_personalisation",
-    "test_v2_send_email.py::test_send_an_email_with_a_client_reference",
-    "test_v2_send_email.py::test_send_an_email_with_a_custom_replyto_address",
-    "test_v2_send_email.py::test_send_an_email_with_a_oneclick_unsubscribe_url",
-    "test_v2_send_email.py::test_reject_email_with_missing_email_address",
-    "test_v2_send_email.py::test_send_an_email_with_a_test_api_key",
-    "test_v2_send_email.py::test_schedule_an_email_for_future_delivery",
-    "test_v2_send_email.py::test_send_email_with_document_upload_in_personalisation",
-    "test_v2_send_email.py::test_rate_limit_email_sending",
-    "test_v2_send_email.py::test_reject_email_scheduled_too_far_in_advance",
-    "test_v2_send_email.py::test_send_an_email_with_empty_personalisation",
-)
-
 # -- v2 send letter: letters not supported --
 _skip(
     "GOV.UK feature not yet implemented: letter notifications",
@@ -116,24 +75,11 @@ _skip(
     "test_v2_send_letter.py::test_send_a_letter_with_qr_code",
 )
 
-# -- v2 get notification: schema differences and missing letter/pdf support --
+# -- v2 get notification: letter-specific tests still skipped --
 _skip(
-    "GOV.UK v2 get notification uses different response schema and routes",
-    "test_v2_get_notification.py::test_get_an_sms_notification_by_id",
-    "test_v2_get_notification.py::test_get_an_email_notification_by_id",
+    "GOV.UK feature not yet implemented: letter notifications",
     "test_v2_get_notification.py::test_get_a_letter_notification_by_id",
-    "test_v2_get_notification.py::test_get_notification_with_cost_data",
-    "test_v2_get_notification.py::test_get_a_delivered_notification",
-    "test_v2_get_notification.py::test_get_a_failed_notification",
-    "test_v2_get_notification.py::test_reject_request_for_notification_from_another_service",
-    "test_v2_get_notification.py::test_reject_request_with_invalid_notification_id",
-    "test_v2_get_notification.py::test_reject_request_with_nonexistent_notification_id",
     "test_v2_get_notification.py::test_get_pdf_for_a_letter_notification",
-    "test_v2_get_notification.py::test_list_notifications_with_default_pagination",
-    "test_v2_get_notification.py::test_list_notifications_filtered_by_template_type",
-    "test_v2_get_notification.py::test_list_notifications_filtered_by_status",
-    "test_v2_get_notification.py::test_list_notifications_filtered_by_reference",
-    "test_v2_get_notification.py::test_paginate_notifications_using_older_than",
 )
 
 # -- v2 templates: /v2/template/... routes don't exist --
@@ -155,28 +101,6 @@ _skip(
     "test_v2_received_texts.py::test_list_received_text_messages",
     "test_v2_received_texts.py::test_paginate_received_texts_using_older_than",
     "test_v2_received_texts.py::test_no_received_texts_returns_empty_list",
-)
-
-# -- Organisation routes: British spelling /organisations/ vs our /organizations/ --
-_skip(
-    "GOV.UK uses /organisations/ (British spelling); our API uses /organizations/",
-    "test_organisation_lifecycle.py::test_create_an_organisation",
-    "test_organisation_lifecycle.py::test_get_an_organisation_by_id",
-    "test_organisation_lifecycle.py::test_list_all_organisations",
-    "test_organisation_lifecycle.py::test_update_an_organisation",
-    "test_organisation_lifecycle.py::test_archive_an_organisation",
-    "test_organisation_lifecycle.py::test_find_organisation_by_email_domain",
-    "test_organisation_lifecycle.py::test_search_organisations",
-    "test_organisation_services.py::test_link_a_service_to_an_organisation",
-    "test_organisation_services.py::test_list_services_in_an_organisation",
-    "test_organisation_services.py::test_get_organisation_services_with_usage",
-    "test_organisation_users.py::test_add_a_user_to_an_organisation",
-    "test_organisation_users.py::test_remove_a_user_from_an_organisation",
-    "test_organisation_users.py::test_list_users_in_an_organisation",
-    "test_organisation_users.py::test_invite_a_user_to_an_organisation",
-    "test_organisation_users.py::test_list_organisation_invitations",
-    "test_organisation_users.py::test_accept_an_organisation_invitation",
-    "test_organisation_users.py::test_validate_an_organisation_invitation_token",
 )
 
 # -- Organisation branding pools: model doesn't have branding pool attributes --
@@ -210,31 +134,6 @@ _skip(
     "test_email_branding.py::test_get_organisations_and_services_using_email_branding",
 )
 
-# -- API keys: missing step definitions for GOV.UK-style API key management --
-_skip(
-    "GOV.UK feature not yet implemented: step definitions for API key management scenarios",
-    "test_api_keys.py::test_create_a_normal_api_key",
-    "test_api_keys.py::test_create_a_test_api_key",
-    "test_api_keys.py::test_create_a_team_api_key",
-    "test_api_keys.py::test_list_api_keys_for_a_service",
-    "test_api_keys.py::test_get_a_specific_api_key",
-    "test_api_keys.py::test_revoke_an_api_key",
-    "test_api_keys.py::test_revoked_api_key_cannot_send_notifications",
-)
-
-# -- Callbacks: missing step definitions for GOV.UK-style callback management --
-_skip(
-    "GOV.UK feature not yet implemented: step definitions for callback management scenarios",
-    "test_callbacks.py::test_create_a_delivery_receipt_callback",
-    "test_callbacks.py::test_get_a_delivery_receipt_callback",
-    "test_callbacks.py::test_update_a_delivery_receipt_callback",
-    "test_callbacks.py::test_delete_a_delivery_receipt_callback",
-    "test_callbacks.py::test_create_an_inbound_sms_callback",
-    "test_callbacks.py::test_get_an_inbound_sms_callback",
-    "test_callbacks.py::test_update_an_inbound_sms_callback",
-    "test_callbacks.py::test_delete_an_inbound_sms_callback",
-)
-
 # -- Complaints: route differences (/service/<id>/complaints vs GOV.UK routes) --
 _skip(
     "GOV.UK feature not yet implemented: complaints route compatibility",
@@ -253,63 +152,6 @@ _skip(
     "test_job_lifecycle.py::test_cancel_a_scheduled_job",
     "test_job_lifecycle.py::test_cancel_a_letter_job",
     "test_job_lifecycle.py::test_get_scheduled_job_stats",
-)
-
-# -- Notifications (admin API): missing step definitions --
-_skip(
-    "GOV.UK feature not yet implemented: admin notification management step definitions",
-    "test_notifications.py::test_get_all_notifications_for_a_service",
-    "test_notifications.py::test_get_notifications_for_a_service_as_csv",
-    "test_notifications.py::test_count_notifications_for_a_service",
-    "test_notifications.py::test_get_a_specific_notification_for_a_service",
-    "test_notifications.py::test_cancel_a_scheduled_notification",
-    "test_notifications.py::test_send_a_oneoff_notification_via_admin",
-)
-
-# -- Service lifecycle: missing step definitions --
-_skip(
-    "GOV.UK feature not yet implemented: service lifecycle step definitions",
-    "test_service_lifecycle.py::test_create_a_new_service",
-    "test_service_lifecycle.py::test_get_a_service_by_id",
-    "test_service_lifecycle.py::test_list_all_services",
-    "test_service_lifecycle.py::test_update_a_service_name",
-    "test_service_lifecycle.py::test_update_service_to_go_live",
-    "test_service_lifecycle.py::test_get_service_history",
-    "test_service_lifecycle.py::test_find_services_by_name",
-    "test_service_lifecycle.py::test_get_live_services_data",
-    "test_service_lifecycle.py::test_get_service_notification_statistics",
-    "test_service_lifecycle.py::test_get_monthly_notification_stats",
-    "test_service_lifecycle.py::test_get_monthly_template_usage",
-    "test_service_lifecycle.py::test_archive_a_service",
-)
-
-# -- Service settings: missing step definitions --
-_skip(
-    "GOV.UK feature not yet implemented: service settings step definitions",
-    "test_service_settings.py::test_get_email_replyto_addresses",
-    "test_service_settings.py::test_add_an_email_replyto_address",
-    "test_service_settings.py::test_verify_a_replyto_email_address",
-    "test_service_settings.py::test_archive_an_email_replyto_address",
-    "test_service_settings.py::test_get_sms_senders_for_a_service",
-    "test_service_settings.py::test_add_an_sms_sender",
-    "test_service_settings.py::test_update_an_sms_sender",
-    "test_service_settings.py::test_archive_an_sms_sender",
-    "test_service_settings.py::test_get_letter_contacts_for_a_service",
-    "test_service_settings.py::test_add_a_letter_contact_block",
-    "test_service_settings.py::test_get_organisation_for_a_service",
-    "test_service_settings.py::test_update_guest_list",
-    "test_service_settings.py::test_get_guest_list",
-    "test_service_settings.py::test_create_a_data_retention_rule",
-    "test_service_settings.py::test_get_data_retention_rules",
-    "test_service_settings.py::test_modify_a_data_retention_rule",
-)
-
-# -- Service users: missing step definitions or route issues --
-_skip(
-    "GOV.UK feature not yet implemented: service user management step definitions",
-    "test_service_users.py::test_list_users_for_a_service",
-    "test_service_users.py::test_add_a_user_to_a_service",
-    "test_service_users.py::test_remove_a_user_from_a_service",
 )
 
 # -- Template CRUD: letter templates require 'letter' in service_permission_types --
@@ -337,57 +179,6 @@ _skip(
 _skip(
     "GOV.UK feature not yet implemented: uploads list endpoint",
     "test_uploads.py::test_list_uploads_for_a_service",
-)
-
-# -- User auth: route/response differences --
-_skip(
-    "GOV.UK feature not yet implemented: user auth route compatibility",
-    "test_user_auth.py::test_verify_correct_password",
-    "test_user_auth.py::test_reject_incorrect_password",
-    "test_user_auth.py::test_send_sms_2fa_code",
-    "test_user_auth.py::test_send_email_2fa_code",
-    "test_user_auth.py::test_verify_correct_2fa_code",
-    "test_user_auth.py::test_reject_incorrect_2fa_code",
-    "test_user_auth.py::test_complete_webauthn_login",
-    "test_user_auth.py::test_send_password_reset_email",
-    "test_user_auth.py::test_update_password",
-    "test_user_auth.py::test_send_email_verification_for_new_user",
-    "test_user_auth.py::test_send_change_email_verification",
-    "test_user_auth.py::test_resend_email_verification",
-)
-
-# -- User management: route/response differences --
-_skip(
-    "GOV.UK feature not yet implemented: user management route compatibility",
-    "test_user_management.py::test_create_a_new_user",
-    "test_user_management.py::test_get_a_user_by_id",
-    "test_user_management.py::test_get_a_user_by_email",
-    "test_user_management.py::test_update_user_details",
-    "test_user_management.py::test_archive_a_user",
-    "test_user_management.py::test_activate_a_user",
-    "test_user_management.py::test_get_users_organisations_and_services",
-    "test_user_management.py::test_list_all_users",
-)
-
-# -- User permissions: route/response differences --
-_skip(
-    "GOV.UK feature not yet implemented: user permissions route compatibility",
-    "test_user_permissions.py::test_set_user_permissions_on_a_service",
-    "test_user_permissions.py::test_remove_all_user_permissions_on_a_service",
-    "test_user_permissions.py::test_set_user_permissions_on_an_organisation",
-    "test_user_permissions.py::test_get_webauthn_credentials_for_a_user",
-    "test_user_permissions.py::test_create_a_webauthn_credential",
-    "test_user_permissions.py::test_delete_a_webauthn_credential",
-)
-
-# -- Provider details: ProviderDetails model differences (no priority, identifier) --
-_skip(
-    "GOV.UK feature not yet implemented: provider details model compatibility (priority, identifier)",
-    "test_provider_details.py::test_list_all_providers",
-    "test_provider_details.py::test_get_a_provider_by_id",
-    "test_provider_details.py::test_get_provider_version_history",
-    "test_provider_details.py::test_update_provider_priority",
-    "test_provider_details.py::test_deactivate_a_provider",
 )
 
 # -- Inbound SMS: route/response differences --
@@ -424,6 +215,114 @@ _skip(
     "test_status.py::test_get_api_status",
     "test_status.py::test_get_detailed_status",
     "test_status.py::test_live_service_and_organisation_counts",
+)
+
+# -- International SMS: US-based system treats all non-US numbers as international --
+_skip(
+    "US-based system has different international SMS semantics than UK-based GOV.UK",
+    "test_v2_send_sms.py::test_reject_sms_to_an_international_number_when_not_enabled",
+)
+
+# -- v2 send email: document upload uses v2 module not active in our API --
+_skip(
+    "GOV.UK feature not yet implemented: document upload via v2 module",
+    "test_v2_send_email.py::test_send_email_with_document_upload_in_personalisation",
+)
+
+# -- Rate limiting: our API uses different rate limiting (total_message_limit, not daily) --
+_skip(
+    "Rate limiting differs: our API uses total_message_limit, not daily_message_limit",
+    "test_v2_send_sms.py::test_rate_limit_sms_sending",
+    "test_v2_send_email.py::test_rate_limit_email_sending",
+)
+
+# -- SMS sender in response: our API doesn't include from_number in content --
+_skip(
+    "Response format differs: our API doesn't include from_number/from_email in POST response content",
+    "test_v2_send_sms.py::test_send_an_sms_using_an_inbound_number_as_sender",
+)
+
+# -- Invalid UUID IDs: our API returns different error codes for invalid UUIDs --
+_skip(
+    "Invalid UUID handling differs (404 vs 400, 405 vs 404)",
+    "test_v2_send_sms.py::test_reject_sms_with_invalid_template_id",
+    "test_v2_get_notification.py::test_reject_request_with_invalid_notification_id",
+)
+
+# -- Pagination: older_than parameter behavior differs --
+_skip(
+    "older_than pagination parameter behaves differently in our API",
+    "test_v2_get_notification.py::test_paginate_notifications_using_older_than",
+)
+
+# -- Scheduled notifications: our API doesn't validate scheduled_for dates --
+_skip(
+    "Scheduled notification validation not yet implemented",
+    "test_v2_send_sms.py::test_schedule_an_sms_for_future_delivery",
+    "test_v2_send_sms.py::test_reject_sms_scheduled_too_far_in_advance",
+    "test_v2_send_email.py::test_schedule_an_email_for_future_delivery",
+)
+
+# -- User permissions: service creator permission is set during create_service() but
+#    dao_get_service_user() returns None in subsequent API requests for certain permission combos --
+_skip(
+    "Session isolation: set_permissions fails with non-default permission values",
+    "test_user_permissions.py::test_set_user_permissions_on_a_service",
+)
+
+# -- Organisation permissions: no organization permission endpoint --
+_skip(
+    "Route not implemented: organization permission management endpoint",
+    "test_user_permissions.py::test_set_user_permissions_on_an_organisation",
+)
+
+# -- Service user management: our API returns different HTTP status codes --
+_skip(
+    "API returns 201 for add-user and 204 for remove-user, feature expects 200",
+    "test_service_users.py::test_add_a_user_to_a_service",
+    "test_service_users.py::test_remove_a_user_from_a_service",
+)
+
+# -- Send one-off notification: requires Celery to be running --
+_skip(
+    "send-notification endpoint requires Celery message broker (not available in test)",
+    "test_notifications.py::test_send_a_oneoff_notification_via_admin",
+)
+
+# -- Data retention modify: API returns 204 but feature expects 200 --
+_skip(
+    "API returns 204 for data retention modification, feature expects 200",
+    "test_service_settings.py::test_modify_a_data_retention_rule",
+)
+
+# -- Letter contacts: no letter-contact routes in our API --
+_skip(
+    "Route not implemented: letter-contact management endpoints",
+    "test_service_settings.py::test_get_letter_contacts_for_a_service",
+    "test_service_settings.py::test_add_a_letter_contact_block",
+)
+
+# -- Verify reply-to: requires REPLY_TO_EMAIL_ADDRESS_VERIFICATION_TEMPLATE_ID seeded --
+_skip(
+    "Route requires REPLY_TO_EMAIL_ADDRESS_VERIFICATION_TEMPLATE_ID template seeded in DB",
+    "test_service_settings.py::test_verify_a_replyto_email_address",
+)
+
+
+# -- User auth: password reset and update-password routes don't exist --
+_skip(
+    "Route not implemented: /user/reset-password and /user/<id>/update-password",
+    "test_user_auth.py::test_send_password_reset_email",
+    "test_user_auth.py::test_update_password",
+)
+
+# -- Organisation invitations: invite endpoint requires Notify service template seeded in DB --
+_skip(
+    "Organisation invite requires ORGANIZATION_INVITATION_EMAIL_TEMPLATE_ID template in DB",
+    "test_organisation_users.py::test_invite_a_user_to_an_organisation",
+    "test_organisation_users.py::test_list_organisation_invitations",
+    "test_organisation_users.py::test_accept_an_organisation_invitation",
+    "test_organisation_users.py::test_validate_an_organisation_invitation_token",
 )
 
 
