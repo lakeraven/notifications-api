@@ -247,10 +247,10 @@ def test_update_template_folder_users(admin_request, sample_service):
         },
     )
 
-    assert response_2["data"]["users_with_permission"] == [
+    assert sorted(response_2["data"]["users_with_permission"]) == sorted([
         str(user_2.id),
         str(user_3.id),
-    ]
+    ])
     assert len(existing_folder.users) == 2
 
 

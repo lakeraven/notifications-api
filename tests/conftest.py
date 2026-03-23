@@ -97,22 +97,15 @@ def notify_db_session(_notify_db, sms_providers):
     with _notify_db.engine.begin() as connection:
         from sqlalchemy import text
 
-        # Preserve static/seed tables; TRUNCATE everything else with CASCADE
-        # so FK ordering doesn't matter.
+        # Preserve static/seed tables and views; TRUNCATE everything else
+        # with CASCADE so FK ordering doesn't matter.
+        # Note: migration 0410 dropped the old helper tables (key_types,
+        # branding_type, etc.) and replaced them with native PG enums, so
+        # they no longer exist and don't need to be listed here.
         preserve = {
             "provider_details",
-            "key_types",
-            "branding_type",
-            "job_status",
             "provider_details_history",
-            "template_process_type",
-            "notifications_all_time_view",
-            "notification_status_types",
-            "organization_types",
-            "service_permission_types",
-            "auth_type",
-            "invite_status_type",
-            "service_callback_type",
+            "notifications_all_time_view",  # this is a VIEW, not a table
         }
         tables_to_clear = [
             tbl.name
@@ -123,9 +116,40 @@ def notify_db_session(_notify_db, sms_providers):
             # NULL out FK references from preserved tables before truncating
             connection.execute(text("UPDATE provider_details SET created_by_id = NULL"))
             connection.execute(text("UPDATE provider_details_history SET created_by_id = NULL"))
+
+            # Save provider data before TRUNCATE CASCADE (which follows FK
+            # constraints structurally and will wipe provider_details because
+            # it has an FK to the users table).
+            saved_providers = connection.execute(
+                text("SELECT id, display_name, identifier, notification_type, active, version, supports_international FROM provider_details")
+            ).fetchall()
+            saved_history = connection.execute(
+                text("SELECT id, display_name, identifier, notification_type, active, version, supports_international FROM provider_details_history")
+            ).fetchall()
+
             connection.execute(
                 text(f"TRUNCATE {', '.join(tables_to_clear)} CASCADE")
             )
+
+            # Re-seed provider rows wiped by TRUNCATE CASCADE
+            for row in saved_providers:
+                connection.execute(
+                    text(
+                        "INSERT INTO provider_details (id, display_name, identifier, notification_type, active, version, supports_international) "
+                        "VALUES (:id, :display_name, :identifier, :notification_type, :active, :version, :supports_international) "
+                        "ON CONFLICT (id) DO NOTHING"
+                    ),
+                    dict(row._mapping),
+                )
+            for row in saved_history:
+                connection.execute(
+                    text(
+                        "INSERT INTO provider_details_history (id, display_name, identifier, notification_type, active, version, supports_international) "
+                        "VALUES (:id, :display_name, :identifier, :notification_type, :active, :version, :supports_international) "
+                        "ON CONFLICT (id, version) DO NOTHING"
+                    ),
+                    dict(row._mapping),
+                )
     _notify_db.session.commit()
 
 
