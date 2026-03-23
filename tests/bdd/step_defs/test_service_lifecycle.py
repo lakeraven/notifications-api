@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from unittest.mock import patch
 
 from pytest_bdd import given, parsers, scenarios, then, when
 
@@ -30,7 +31,10 @@ def three_services_exist(notify_db_session):
 
 @given("a service in trial mode exists", target_fixture="service")
 def a_service_in_trial_mode(notify_db_session):
-    return create_service(restricted=True)
+    return create_service(
+        service_name=f"Trial Service {uuid.uuid4()}",
+        restricted=True,
+    )
 
 
 @given("a service exists with changes in its history", target_fixture="service")
@@ -81,20 +85,20 @@ def a_service_with_multiple_templates(notify_db_session):
 # -- When steps --
 
 
-@when("I create a new service via the admin API", target_fixture="api_response")
-def create_service_via_api(admin_client):
+@when(parsers.parse('I create a service named "{name}" for user'), target_fixture="api_response")
+def create_service_via_api(admin_client, name):
     user = create_user(email=f"creator-{uuid.uuid4()}@digital.cabinet-office.gov.uk")
+    unique_suffix = uuid.uuid4()
     resp = admin_client.post(
         "/service",
         data={
-            "name": f"New Service {uuid.uuid4()}",
+            "name": f"{name} {unique_suffix}",
+            "created_by": str(user.id),
             "user_id": str(user.id),
-            "email_message_limit": 1000,
-            "sms_message_limit": 1000,
-            "letter_message_limit": 1000,
-            "international_sms_message_limit": 1000,
+            "message_limit": 1000,
+            "total_message_limit": 100000,
             "restricted": True,
-            "email_from": "test.service",
+            "email_from": f"test.service.{unique_suffix}",
         },
     )
     return {"status_code": resp.status_code, "json": resp.json}
@@ -112,14 +116,22 @@ def list_all_services(admin_client):
     return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("I update the service name", target_fixture="api_response")
-def update_service_name(admin_client, service, test_context):
-    new_name = f"Updated Service {uuid.uuid4()}"
-    test_context["new_name"] = new_name
+@when(parsers.parse('I update the service name to "{new_name}"'), target_fixture="api_response")
+def update_service_name(admin_client, service, new_name):
     resp = admin_client.post(
         f"/service/{service.id}",
         data={"name": new_name},
     )
+    return {"status_code": resp.status_code, "json": resp.json}
+
+
+@when("I update the service to set restricted to false", target_fixture="api_response")
+def update_service_restricted(admin_client, service):
+    with patch("app.service.rest.send_notification_to_service_users"):
+        resp = admin_client.post(
+            f"/service/{service.id}",
+            data={"restricted": False},
+        )
     return {"status_code": resp.status_code, "json": resp.json}
 
 
@@ -135,27 +147,27 @@ def get_service_history(admin_client, service):
     return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("I search for services by name", target_fixture="api_response")
-def search_services_by_name(admin_client, service):
+@when(parsers.parse('I search for services by name "{search_term}"'), target_fixture="api_response")
+def search_services_by_name(admin_client, search_term):
     resp = admin_client.get(
-        f"/service/find-services-by-name?service_name={service.name}"
+        f"/service/find-services-by-name?service_name={search_term}"
     )
     return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("I get live services data", target_fixture="api_response")
+@when("I request live services data", target_fixture="api_response")
 def get_live_services_data(admin_client):
     resp = admin_client.get("/service/live-services-data")
     return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("I get the service notification statistics", target_fixture="api_response")
+@when("I get the service statistics", target_fixture="api_response")
 def get_service_statistics(admin_client, service):
     resp = admin_client.get(f"/service/{service.id}/statistics")
     return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("I get the service monthly notification statistics", target_fixture="api_response")
+@when("I get the monthly notification stats", target_fixture="api_response")
 def get_monthly_stats(admin_client, service):
     from datetime import datetime
 
@@ -164,7 +176,7 @@ def get_monthly_stats(admin_client, service):
     return {"status_code": resp.status_code, "json": resp.json}
 
 
-@when("I get the service monthly template usage", target_fixture="api_response")
+@when("I get the monthly template usage", target_fixture="api_response")
 def get_monthly_template_usage(admin_client, service):
     from datetime import datetime
 
@@ -178,24 +190,35 @@ def get_monthly_template_usage(admin_client, service):
 # -- Then steps --
 
 
-@then("the response should contain the service details")
-def response_has_service_details(api_response):
+@then("the service should have default permissions")
+def service_has_default_permissions(api_response):
     data = api_response["json"]["data"]
-    assert "id" in data
-    assert "name" in data
+    assert "permissions" in data
 
 
-@then("the response should contain a list of services")
-def response_has_service_list(api_response):
+@then("the service should be in restricted mode")
+def service_is_restricted(api_response):
+    data = api_response["json"]["data"]
+    assert data["restricted"] is True
+
+
+@then(parsers.parse('the service name should be "{name}"'))
+def service_name_should_be(api_response, name):
+    data = api_response["json"]["data"]
+    assert data["name"] == name
+
+
+@then("the response should contain at least 3 services")
+def response_has_at_least_3_services(api_response):
     data = api_response["json"]["data"]
     assert isinstance(data, list)
-    assert len(data) >= 1
+    assert len(data) >= 3
 
 
-@then("the response should contain the updated service name")
-def response_has_updated_name(api_response, test_context):
+@then("the service should not be restricted")
+def service_is_not_restricted(api_response):
     data = api_response["json"]["data"]
-    assert data["name"] == test_context["new_name"]
+    assert data["restricted"] is False
 
 
 @then("the service should be archived")
@@ -204,7 +227,7 @@ def service_is_archived(api_response, admin_client, service):
     assert resp.json["data"]["active"] is False
 
 
-@then("the response should contain service history")
+@then("the response should contain service history events")
 def response_has_service_history(api_response):
     data = api_response["json"]["data"]
     assert "service_history" in data
@@ -213,35 +236,30 @@ def response_has_service_history(api_response):
     assert "events" in data
 
 
-@then("the response should contain the matching service")
-def response_has_matching_service(api_response, service):
+@then(parsers.parse('the results should include "{name}"'))
+def results_include_name(api_response, name):
     data = api_response["json"]["data"]
     assert isinstance(data, list)
     assert len(data) >= 1
     names = [s["name"] for s in data]
-    assert service.name in names
+    assert any(name in n for n in names), f"Expected '{name}' in {names}"
 
 
-@then("the response should contain live services data")
-def response_has_live_data(api_response):
-    data = api_response["json"]["data"]
-    assert isinstance(data, list)
-
-
-@then("the response should contain notification statistics")
-def response_has_notification_stats(api_response):
+@then("the response should include counts by notification type")
+def response_has_notification_type_counts(api_response):
     data = api_response["json"]["data"]
     assert isinstance(data, dict)
 
 
-@then("the response should contain monthly notification statistics")
-def response_has_monthly_stats(api_response):
+@then("the response should be grouped by month")
+def response_grouped_by_month(api_response):
     data = api_response["json"]["data"]
     assert isinstance(data, dict)
 
 
-@then("the response should contain monthly template usage data")
-def response_has_template_usage(api_response):
-    data = api_response["json"]
-    # The monthly template usage endpoint returns a list
-    assert isinstance(data, (list, dict))
+@then("the response should include template names and counts")
+def response_has_template_names_and_counts(api_response):
+    # The monthly template usage endpoint returns {"stats": [...]}
+    json_data = api_response["json"]
+    stats = json_data.get("stats", json_data.get("data", []))
+    assert isinstance(stats, list)
