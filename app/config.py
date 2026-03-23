@@ -163,7 +163,7 @@ class Config(object):
     MOU_SIGNED_ON_BEHALF_ON_BEHALF_RECEIPT_TEMPLATE_ID = (
         "522b6657-5ca5-4368-a294-6b527703bd0b"
     )
-    NOTIFY_INTERNATIONAL_SMS_SENDER = getenv("AWS_US_TOLL_FREE_NUMBER")
+    NOTIFY_INTERNATIONAL_SMS_SENDER = getenv("AWS_US_TOLL_FREE_NUMBER", "+18005555555")
     LETTERS_VOLUME_EMAIL_TEMPLATE_ID = "11fad854-fd38-4a7c-bd17-805fb13dfc12"
     NHS_EMAIL_BRANDING_ID = "a7dc4e56-660b-4db7-8cff-12c37b12b5ea"
     # we only need real email in Live environment (production)
@@ -355,10 +355,10 @@ class Config(object):
 
 def _s3_credentials_from_env(bucket_prefix):
     return {
-        "bucket": getenv(f"{bucket_prefix}_BUCKET_NAME"),
-        "access_key_id": getenv(f"{bucket_prefix}_AWS_ACCESS_KEY_ID"),
-        "secret_access_key": getenv(f"{bucket_prefix}_AWS_SECRET_ACCESS_KEY"),
-        "region": getenv(f"{bucket_prefix}_AWS_REGION"),
+        "bucket": getenv(f"{bucket_prefix}_BUCKET_NAME", ""),
+        "access_key_id": getenv(f"{bucket_prefix}_AWS_ACCESS_KEY_ID", ""),
+        "secret_access_key": getenv(f"{bucket_prefix}_AWS_SECRET_ACCESS_KEY", ""),
+        "region": getenv(f"{bucket_prefix}_AWS_REGION", ""),
     }
 
 
@@ -406,9 +406,12 @@ class Test(Development):
 
 
 class Production(Config):
-    # buckets
-    CSV_UPLOAD_BUCKET = cloud_config.s3_credentials(
+    # buckets — on Render, S3 credentials come from env vars; on CF, from VCAP_SERVICES
+    _cf_bucket = cloud_config.s3_credentials(
         f"notify-api-csv-upload-bucket-{Config.NOTIFY_ENVIRONMENT}"
+    )
+    CSV_UPLOAD_BUCKET = (
+        _s3_credentials_from_env("CSV") if _cf_bucket.get("bucket") == "" else _cf_bucket
     )
 
     FROM_NUMBER = "Notify.gov"
