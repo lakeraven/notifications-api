@@ -10,7 +10,7 @@ from unittest.mock import ANY
 import pytest
 from pytest_bdd import given, parsers, scenario, scenarios, then, when
 
-from app.constants import EMAIL_TYPE, KEY_TYPE_NORMAL, KEY_TYPE_TEAM, KEY_TYPE_TEST, SMS_TYPE
+from app.constants import EMAIL_TYPE, INTERNATIONAL_SMS_TYPE, KEY_TYPE_NORMAL, KEY_TYPE_TEAM, KEY_TYPE_TEST, SMS_TYPE
 from app.models import Notification
 from tests import create_service_authorization_header
 from tests.app.db import (
@@ -31,8 +31,8 @@ scenarios("../features/v2_notifications/send_sms.feature")
 
 @pytest.fixture
 def sms_service(notify_db_session):
-    """A service with SMS permissions."""
-    return create_service(service_permissions=[SMS_TYPE, EMAIL_TYPE])
+    """A service with SMS permissions (including international for UK test numbers)."""
+    return create_service(service_permissions=[SMS_TYPE, EMAIL_TYPE, INTERNATIONAL_SMS_TYPE])
 
 
 @pytest.fixture
@@ -52,7 +52,7 @@ def api_key_info():
 
 @given("a service with SMS permissions exists", target_fixture="sms_service")
 def service_with_sms(notify_db_session):
-    return create_service(service_permissions=[SMS_TYPE, EMAIL_TYPE])
+    return create_service(service_permissions=[SMS_TYPE, EMAIL_TYPE, INTERNATIONAL_SMS_TYPE])
 
 
 @given(
@@ -76,7 +76,7 @@ def service_has_inbound_number(sms_service, number):
 
 @given(parsers.parse('the service has an SMS sender "{name}" with value "{value}"'), target_fixture="sms_sender")
 def service_has_sms_sender(sms_service, name, value):
-    return create_service_sms_sender(service_id=sms_service.id, sms_sender=value)
+    return create_service_sms_sender(service=sms_service, sms_sender=value)
 
 
 @given("the service has a test API key", target_fixture="api_key_info")
@@ -98,12 +98,8 @@ def service_in_trial_mode(sms_service):
 
 @given("the service has international SMS permission")
 def service_has_international(sms_service):
-    from app.dao.service_permissions_dao import dao_add_service_permission
-    from app.models import ServicePermission
-
-    from app.constants import INTERNATIONAL_SMS_TYPE
-
-    dao_add_service_permission(sms_service.id, INTERNATIONAL_SMS_TYPE)
+    # Already included via create_service(..., service_permissions=[..., INTERNATIONAL_SMS_TYPE])
+    pass
 
 
 @given("another service exists with an SMS template", target_fixture="other_template")
@@ -119,9 +115,11 @@ def service_without_sms(notify_db_session):
 
 @given("the service has reached its daily SMS limit")
 def service_at_sms_limit(sms_service, mocker):
+    from app.v2.errors import TooManyRequestsError
+
     mocker.patch(
-        "app.notifications.process_notifications.check_service_over_daily_message_limit",
-        side_effect=Exception("rate limit"),
+        "app.notifications.validators.check_service_over_daily_message_limit",
+        side_effect=TooManyRequestsError(sms_service.message_limit),
     )
 
 
@@ -467,14 +465,25 @@ def no_sms_task_queued(mocker):
 
 @then(parsers.parse('the response from_number should be "{number}"'))
 def response_from_number(api_response, number):
-    assert api_response["json"]["content"]["from_number"] == number
+    from tests.bdd.step_defs.conftest import _unwrap
+
+    data = _unwrap(api_response["json"])
+    content = data.get("content", {})
+    assert content.get("from_number") == number
 
 
 @then("the response scheduled_for should not be null")
 def response_scheduled_not_null(api_response):
-    assert api_response["json"].get("scheduled_for") is not None
+    from tests.bdd.step_defs.conftest import _unwrap
+
+    data = _unwrap(api_response["json"])
+    assert data.get("scheduled_for") is not None
 
 
 @then("the response content should include from_email address")
 def response_has_from_email(api_response):
-    assert "from_email" in api_response["json"].get("content", {})
+    from tests.bdd.step_defs.conftest import _unwrap
+
+    data = _unwrap(api_response["json"])
+    content = data.get("content", {})
+    assert "from_email" in content

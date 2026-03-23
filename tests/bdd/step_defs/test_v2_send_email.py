@@ -13,7 +13,7 @@ from unittest.mock import ANY
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
-from app.constants import EMAIL_TYPE, KEY_TYPE_NORMAL, KEY_TYPE_TEAM, KEY_TYPE_TEST, SMS_TYPE
+from app.constants import EMAIL_TYPE, INTERNATIONAL_SMS_TYPE, KEY_TYPE_NORMAL, KEY_TYPE_TEAM, KEY_TYPE_TEST, SMS_TYPE
 from app.models import Notification
 from app.v2.errors import TooManyRequestsError
 from tests import create_service_authorization_header
@@ -23,6 +23,7 @@ from tests.app.db import (
     create_service,
     create_template,
 )
+from tests.bdd.step_defs.conftest import _unwrap
 
 # Load all scenarios from the feature file
 scenarios("../features/v2_notifications/send_email.feature")
@@ -34,7 +35,7 @@ scenarios("../features/v2_notifications/send_email.feature")
 @pytest.fixture
 def email_service(notify_db_session):
     """A service with email permissions."""
-    return create_service(service_permissions=[EMAIL_TYPE, SMS_TYPE])
+    return create_service(service_permissions=[EMAIL_TYPE, SMS_TYPE, INTERNATIONAL_SMS_TYPE])
 
 
 @pytest.fixture
@@ -54,7 +55,7 @@ def api_key_info():
 
 @given("a service with email permissions exists", target_fixture="email_service")
 def service_with_email(notify_db_session):
-    return create_service(service_permissions=[EMAIL_TYPE, SMS_TYPE])
+    return create_service(service_permissions=[EMAIL_TYPE, SMS_TYPE, INTERNATIONAL_SMS_TYPE])
 
 
 @given(
@@ -92,7 +93,7 @@ def service_has_reply_to(email_service, email_address):
 def service_at_email_limit(email_service, mocker):
     mocker.patch(
         "app.notifications.validators.check_service_over_daily_message_limit",
-        side_effect=TooManyRequestsError("email", email_service.message_limit),
+        side_effect=TooManyRequestsError(email_service.message_limit),
     )
 
 
@@ -129,7 +130,11 @@ def send_email_with_personalisation(client, email_service, email_template, email
     mocker.patch("app.celery.provider_tasks.deliver_email.apply_async")
     personalisation = {"name": "Alice"}
     if datatable:
-        personalisation = {row[0]: row[1] for row in datatable}
+        # Table format: header row has field names, data row has values
+        if len(datatable) >= 2 and len(datatable[0]) >= 1:
+            headers = datatable[0]
+            values = datatable[1]
+            personalisation = dict(zip(headers, values))
     data = {
         "email_address": email,
         "template_id": str(email_template.id),
@@ -330,12 +335,16 @@ def send_email_with_file_upload(client, email_service, email_template, mocker):
 
 @then(parsers.parse('the response content should include subject "{subject}"'))
 def response_has_subject(api_response, subject):
-    assert api_response["json"]["content"]["subject"] == subject
+    data = _unwrap(api_response["json"])
+    content = data.get("content", {})
+    assert content.get("subject") == subject
 
 
 @then("the response content should include from_email address")
 def response_has_from_email(api_response):
-    assert "from_email" in api_response["json"].get("content", {})
+    data = _unwrap(api_response["json"])
+    content = data.get("content", {})
+    assert "from_email" in content
 
 
 @then("no email delivery task should be queued")
