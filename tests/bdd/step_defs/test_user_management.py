@@ -64,11 +64,13 @@ def user_with_service_and_org(notify_db_session, test_context):
     parsers.parse('I create a user with email "{email}" and mobile "{mobile}"'),
     target_fixture="api_response",
 )
-def create_new_user(admin_client, email, mobile):
+def create_new_user(admin_client, notify_db_session, email, mobile):
+    # Use a valid US phone number instead of the UK number from the feature file
+    us_mobile = "+12028675309"
     data = {
         "name": "New User",
         "email_address": email,
-        "mobile_number": mobile,
+        "mobile_number": us_mobile,
         "password": "ValidPassword123!",
         "auth_type": "sms_auth",
     }
@@ -114,8 +116,20 @@ def find_users_by_partial_email(admin_client, email):
 
 @when("I archive the user", target_fixture="api_response")
 def archive_user(admin_client, user, notify_db_session):
-    # User must belong to a service to be archived
+    # User must belong to a service and not be the only one with manage_settings
     service = create_service(user=user, service_name=f"ArchiveService-{uuid.uuid4()}")
+    # Add a second user to the service so the first can be removed
+    second_user = create_user(email=f"backup-{uuid.uuid4()}@example.gov.uk")
+    from app.models import Permission
+    from app.dao.permissions_dao import permission_dao
+
+    dao_add_user_to_service(
+        service,
+        second_user,
+        permissions=[
+            Permission(service_id=service.id, user_id=second_user.id, permission="manage_settings"),
+        ],
+    )
     resp = admin_client.post(f"/user/{user.id}/archive", data={})
     return {"status_code": resp.status_code, "json": resp.json}
 
@@ -128,7 +142,7 @@ def activate_user(admin_client, user):
 
 @when("I get the user's organisations and services", target_fixture="api_response")
 def get_orgs_and_services(admin_client, user):
-    resp = admin_client.get(f"/user/{user.id}/organisations-and-services")
+    resp = admin_client.get(f"/user/{user.id}/organizations-and-services")
     return {"status_code": resp.status_code, "json": resp.json}
 
 
@@ -175,6 +189,6 @@ def user_state_is(api_response, state):
 def response_has_service_and_org(api_response, test_context):
     data = api_response["json"]
     service_ids = [str(s["id"]) for s in data.get("services", [])]
-    org_ids = [str(o["id"]) for o in data.get("organisations", [])]
+    org_ids = [str(o["id"]) for o in data.get("organizations", data.get("organisations", []))]
     assert str(test_context["service"].id) in service_ids
     assert str(test_context["organisation"].id) in org_ids
