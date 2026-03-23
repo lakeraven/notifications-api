@@ -231,7 +231,7 @@ def get_notification_return_data(notification_id, notification, template):
     content = {"body": body}
     if hasattr(template, "subject"):
         content["subject"] = template.subject
-        content["from_email"] = current_app.config.get("NOTIFY_EMAIL_FROM", "notify@notify.lakeraven.com")
+        content["from_email"] = current_app.config.get("NOTIFY_EMAIL_FROM")
     output = {
         "template_version": notification["template_version"],
         "notification": {"id": notification_id},

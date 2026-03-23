@@ -1,6 +1,11 @@
 # GOV.UK-compatible constants.
 # Maps flat constant names to our StrEnum values for convergence.
 # Over time, we can migrate callers to use these directly and retire enums.py.
+#
+# Source of truth: app/enums.py owns the DB enum values.
+# This file re-exports them as GOV.UK-style flat names.
+# String stubs (e.g. LETTER_TYPE, inbound_sms) exist only for BDD compatibility
+# and are NOT in any DB enum — do not pass them to DB models.
 
 import enum
 

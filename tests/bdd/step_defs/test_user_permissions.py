@@ -36,7 +36,7 @@ def user_in_organisation(second_user, notify_db_session):
 
     from app.dao.organisation_dao import dao_add_user_to_organisation
 
-    dao_add_user_to_organisation(organisation_id=org.id, user_id=second_user.id)
+    dao_add_user_to_organisation(organization_id=org.id, user_id=second_user.id)
     return org
 
 

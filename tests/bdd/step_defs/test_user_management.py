@@ -50,7 +50,7 @@ def user_with_service_and_org(notify_db_session, test_context):
 
     from app.dao.organisation_dao import dao_add_user_to_organisation
 
-    dao_add_user_to_organisation(organisation_id=org.id, user_id=user.id)
+    dao_add_user_to_organisation(organization_id=org.id, user_id=user.id)
 
     test_context["service"] = service
     test_context["organisation"] = org
