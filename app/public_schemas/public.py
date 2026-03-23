@@ -30,7 +30,7 @@ class PublicNotificationSchema(Schema):
     updated_at = fields.String(allow_none=True)
     sent_by = fields.String(allow_none=True)
     status = fields.String(required=True)
-    reference = fields.String(allow_none=True)
+    reference = fields.String(allow_none=True, attribute="client_reference")
     template = fields.Nested(PublicTemplateSchema, required=True)
     service = fields.Raw(required=True)
     job = fields.Nested(PublicJobSchema, allow_none=True)
