@@ -15,7 +15,16 @@
           "required": ["id"]
         },
         "body": {"type": "string"},
-        "template_version": {"type": "number"}
+        "template_version": {"type": "number"},
+        "content": {
+          "type": "object",
+          "properties": {
+            "body": {"type": "string"}
+          },
+          "required": ["body"]
+        },
+        "reference": {"type": ["string", "null"]},
+        "scheduled_for": {"type": ["string", "null"]}
       },
       "additionalProperties": false,
       "required": ["notification", "body", "template_version"]
