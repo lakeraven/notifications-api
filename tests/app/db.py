@@ -133,6 +133,7 @@ def create_service(
     billing_contact_names=None,
     billing_contact_email_addresses=None,
     billing_reference=None,
+    email_branding=None,  # GOV.UK convergence: accepted but ignored
 ):
     if check_if_service_exists:
         stmt = select(Service).where(Service.name == service_name)
@@ -684,6 +685,7 @@ def create_ft_billing(
     rate=0,
     billable_unit=1,
     notifications_sent=1,
+    postage=None,  # GOV.UK convergence: accepted but ignored (no letter postage support)
 ):
     data = FactBilling(
         local_date=local_date,
@@ -703,7 +705,7 @@ def create_ft_billing(
 
 
 def create_ft_notification_status(
-    local_date,
+    local_date=None,
     notification_type=NotificationType.SMS,
     service=None,
     template=None,
@@ -711,7 +713,10 @@ def create_ft_notification_status(
     key_type=KeyType.NORMAL,
     notification_status=NotificationStatus.DELIVERED,
     count=1,
+    bst_date=None,  # GOV.UK compat alias for local_date
 ):
+    if bst_date is not None and local_date is None:
+        local_date = bst_date
     if job:
         template = job.template
     if template:
@@ -1062,3 +1067,33 @@ def create_webauthn_credential(
     db.session.add(webauthn_credential)
     db.session.commit()
     return webauthn_credential
+
+
+# -- GOV.UK compatibility aliases and stubs --
+
+# British spelling alias
+create_organisation = create_organization
+
+
+def create_letter_branding(name="HM Government", filename="hm-government"):
+    """Stub for GOV.UK letter branding. Returns a minimal dict since we don't have the model."""
+    # TODO: Add LetterBranding model for full GOV.UK convergence
+    from unittest.mock import MagicMock
+
+    lb = MagicMock()
+    lb.id = uuid.uuid4()
+    lb.name = name
+    lb.filename = filename
+    return lb
+
+
+def create_letter_contact(service, contact_block="10 Downing Street", is_default=True):
+    """Stub for GOV.UK letter contact. Returns a minimal mock."""
+    from unittest.mock import MagicMock
+
+    lc = MagicMock()
+    lc.id = uuid.uuid4()
+    lc.service_id = service.id
+    lc.contact_block = contact_block
+    lc.is_default = is_default
+    return lc

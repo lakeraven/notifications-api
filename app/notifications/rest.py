@@ -88,6 +88,7 @@ def get_all_notifications():
     page = data.get("page", 1)
     page_size = data.get("page_size", current_app.config.get("API_PAGE_SIZE"))
     limit_days = data.get("limit_days")
+    client_reference = request.args.get("reference")
     gevent.sleep(0)  # keep this connection alive
     pagination = notifications_dao.get_notifications_for_service(
         str(authenticated_service.id),
@@ -98,6 +99,7 @@ def get_all_notifications():
         limit_days=limit_days,
         key_type=api_user.key_type,
         include_jobs=include_jobs,
+        client_reference=client_reference,
     )
     gevent.sleep(0)  # keep this connection alive
 
@@ -202,6 +204,7 @@ def send_notification(notification_type):
         key_type=api_user.key_type,
         simulated=simulated,
         reply_to_text=template.reply_to_text,
+        client_reference=notification_form.get("reference"),
     )
 
     if not simulated:
@@ -224,10 +227,18 @@ def send_notification(notification_type):
 
 
 def get_notification_return_data(notification_id, notification, template):
+    body = template.content_with_placeholders_filled_in
+    content = {"body": body}
+    if hasattr(template, "subject"):
+        content["subject"] = template.subject
+        content["from_email"] = current_app.config.get("NOTIFY_EMAIL_FROM")
     output = {
         "template_version": notification["template_version"],
         "notification": {"id": notification_id},
-        "body": template.content_with_placeholders_filled_in,
+        "body": body,
+        "content": content,
+        "reference": notification.get("reference"),
+        "scheduled_for": notification.get("scheduled_for"),
     }
     if hasattr(template, "subject"):
         output["subject"] = template.subject

@@ -549,10 +549,21 @@ class NotificationSchema(Schema):
 
     status = fields.Enum(NotificationStatus, by_value=True, required=False)
     personalisation = fields.Dict(required=False)
+    reference = fields.Str(required=False, load_default=None, allow_none=True)
+    scheduled_for = fields.Str(required=False, load_default=None, allow_none=True)
 
 
 class SmsNotificationSchema(NotificationSchema):
     to = fields.Str(required=True)
+
+    @pre_load
+    def accept_govuk_fields(self, data, **kwargs):
+        """Accept GOV.UK field names: phone_number → to, template_id → template."""
+        if "phone_number" in data and "to" not in data:
+            data["to"] = data.pop("phone_number")
+        if "template_id" in data and "template" not in data:
+            data["template"] = data.pop("template_id")
+        return data
 
     @validates("to")
     def validate_to(self, value, data_key):
@@ -573,6 +584,15 @@ class SmsNotificationSchema(NotificationSchema):
 class EmailNotificationSchema(NotificationSchema):
     to = fields.Str(required=True)
     template = fields.Str(required=True)
+
+    @pre_load
+    def accept_govuk_fields(self, data, **kwargs):
+        """Accept GOV.UK field names: email_address → to, template_id → template."""
+        if "email_address" in data and "to" not in data:
+            data["to"] = data.pop("email_address")
+        if "template_id" in data and "template" not in data:
+            data["template"] = data.pop("template_id")
+        return data
 
     @validates("to")
     def validate_to(self, value, data_key):
